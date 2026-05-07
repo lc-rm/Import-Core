@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>クライアント・履歴 - Import Core</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <div class="brand">
+    <img src="assets/koala-pc.png" alt="" />
+    <span>Import Core</span>
+  </div>
+  <nav>
+    <a href="index.html">変換</a>
+    <a href="settings.html" class="active">クライアント・履歴</a>
+    <a href="account.html">アカウント</a>
+  </nav>
+  <div class="user-badge">
+    <span>👤 <span class="uid" id="currentUser"></span></span>
+    <button id="logoutBtn" type="button">ログアウト</button>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="card-header-with-koala">
+      <img src="assets/koala-happy.png" alt="" />
+      <div>
+        <h1>クライアント管理</h1>
+        <div class="note">変換ツールで使用するクライアントを追加・編集・削除できます。</div>
+      </div>
+    </div>
+
+    <h3>新規追加</h3>
+    <div class="row">
+      <label style="flex:1; max-width:600px">クライアント名<input id="newName" placeholder="例:株式会社Link Core" style="width:100%" /></label>
+    </div>
+    <div style="margin:-4px 0 12px 0; display:flex; gap:6px; flex-wrap:wrap; align-items:center">
+      <span class="muted" style="font-size:12px; margin-right:4px">クイック入力:</span>
+      <button type="button" class="quick-prefix" data-prefix="株式会社" style="padding:6px 14px; font-size:13px; background:#fff; color:var(--mint-700); border:1px solid var(--mint-400); border-radius:18px; cursor:pointer; font-weight:500">+ 株式会社</button>
+      <button type="button" class="quick-prefix" data-prefix="有限会社" style="padding:6px 14px; font-size:13px; background:#fff; color:var(--mint-700); border:1px solid var(--mint-400); border-radius:18px; cursor:pointer; font-weight:500">+ 有限会社</button>
+      <button type="button" class="quick-prefix" data-prefix="合同会社" style="padding:6px 14px; font-size:13px; background:#fff; color:var(--mint-700); border:1px solid var(--mint-400); border-radius:18px; cursor:pointer; font-weight:500">+ 合同会社</button>
+    </div>
+    <button id="addBtn">クライアントを追加</button>
+    <span id="addMsg" class="muted" style="margin-left:12px"></span>
+
+    <h3 style="margin-top:24px">登録済みクライアント</h3>
+    <div id="clientList"></div>
+  </div>
+
+  <div class="card">
+    <h2>取込履歴管理</h2>
+    <div class="note">クライアント × 媒体ごとに過去5回分の取込履歴(重複チェックに使用)を確認・削除できます。</div>
+    <div id="historyAll"></div>
+  </div>
+
+  <div class="card">
+    <h2>バックアップ</h2>
+    <div class="note">
+      設定データは<b>暗号化</b>されてこのブラウザに保存されています。<br>
+      別のPC・ブラウザで使う場合や、誤って消したときの復元用にバックアップしてください。
+    </div>
+    <div class="row">
+      <button id="exportBtn">バックアップをダウンロード(JSON)</button>
+      <label class="filebtn">
+        バックアップから復元
+        <input id="importFile" type="file" accept=".json" hidden />
+      </label>
+    </div>
+    <div id="bkMsg" class="muted" style="margin-top:8px"></div>
+  </div>
+</main>
+
+<script src="auth.js"></script>
+<script src="sources.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+if (!Auth.requireLogin()) throw new Error('login required');
+
+async function init(){
+  $('currentUser').textContent = Auth.getCurrentUserId();
+  $('logoutBtn').onclick = () => { Auth.clearSession(); location.href = 'login.html'; };
+
+  await renderClients();
+  await renderHistoryAll();
+
+  $('addBtn').onclick = onAdd;
+  $('exportBtn').onclick = onExport;
+  $('importFile').onchange = onImport;
+
+  // クイック入力ボタン
+  document.querySelectorAll('.quick-prefix').forEach(btn => {
+    btn.addEventListener('click', () => insertPrefix(btn.dataset.prefix));
+  });
+}
+
+// クライアント名入力欄に法人格を挿入
+function insertPrefix(prefix){
+  const inp = $('newName');
+  const v = inp.value;
+  if (!v){
+    // 空欄なら頭に入れて末尾にカーソル
+    inp.value = prefix;
+    inp.focus();
+    inp.setSelectionRange(prefix.length, prefix.length);
+  } else {
+    // 文字が入っていたらカーソル位置に挿入
+    const start = inp.selectionStart ?? v.length;
+    const end = inp.selectionEnd ?? v.length;
+    inp.value = v.slice(0, start) + prefix + v.slice(end);
+    inp.focus();
+    const newPos = start + prefix.length;
+    inp.setSelectionRange(newPos, newPos);
+  }
+}
+
+async function onAdd(){
+  const name = $('newName').value.trim();
+  if (!name){ $('addMsg').innerHTML = '<span class="err">名前を入力してください</span>'; return; }
+  const clients = await SecureStore.loadClients();
+  if (clients.some(c => c.name === name)){
+    $('addMsg').innerHTML = '<span class="err">同じ名前のクライアントが既に存在します</span>';
+    return;
+  }
+  await SecureStore.addClient({
+    name
+  });
+  $('newName').value = '';
+  $('addMsg').innerHTML = '<span class="ok">追加しました</span>';
+  setTimeout(() => $('addMsg').innerHTML = '', 1500);
+  await renderClients();
+  await renderHistoryAll();
+}
+
+async function renderClients(){
+  const list = await SecureStore.loadClients();
+  const box = $('clientList');
+  if (list.length === 0){
+    box.innerHTML = `
+      <div class="hero-empty">
+        <img src="assets/koala-think.png" alt="" />
+        <p>まだクライアントが登録されていません</p>
+      </div>`;
+    return;
+  }
+  const head = `<tr><th>名前</th><th>操作</th></tr>`;
+  const body = list.map(c => `
+    <tr data-id="${c.id}">
+      <td><input type="text" value="${escapeHtml(c.name)}" data-field="name" /></td>
+      <td>
+        <button class="small" data-action="save">保存</button>
+        <button class="small danger" data-action="delete">削除</button>
+      </td>
+    </tr>
+  `).join('');
+  box.innerHTML = `<div class="scroll"><table class="editable">${head}${body}</table></div>`;
+  box.querySelectorAll('button').forEach(btn => btn.addEventListener('click', onClientAction));
+}
+
+async function onClientAction(e){
+  const tr = e.target.closest('tr');
+  const id = tr.dataset.id;
+  const action = e.target.dataset.action;
+  if (action === 'save'){
+    const patch = {};
+    tr.querySelectorAll('input[data-field]').forEach(inp => {
+      patch[inp.dataset.field] = inp.value.trim();
+    });
+    if (!patch.name){ alert('名前を空にはできません'); return; }
+    const clients = await SecureStore.loadClients();
+    if (clients.some(c => c.id !== id && c.name === patch.name)){
+      alert('同じ名前のクライアントが既に存在します');
+      return;
+    }
+    await SecureStore.updateClient(id, patch);
+    flash(e.target, '保存');
+  } else if (action === 'delete'){
+    const clients = await SecureStore.loadClients();
+    const c = clients.find(x => x.id === id);
+    if (!confirm(`「${c.name}」を削除します。\n\n関連する取込履歴もすべて削除されます。よろしいですか?`)) return;
+    await SecureStore.deleteClient(id);
+    await renderClients();
+    await renderHistoryAll();
+  }
+}
+
+async function renderHistoryAll(){
+  const clients = await SecureStore.loadClients();
+  const all = await SecureStore.getAllHistory();
+  const box = $('historyAll');
+  if (clients.length === 0){
+    box.innerHTML = '<p class="muted">クライアントが未登録です</p>';
+    return;
+  }
+  const sections = clients.map(c => {
+    const byClient = all[c.id] || {};
+    const hasAny = Object.values(byClient).some(arr => (arr || []).length > 0);
+    if (!hasAny){
+      return `<h4>${escapeHtml(c.name)}</h4><p class="muted">履歴なし</p>`;
+    }
+    const blocks = Object.keys(SOURCES).map(sId => {
+      const arr = byClient[sId] || [];
+      if (arr.length === 0) return '';
+      const rows = arr.map((e,i) => {
+        const dt = new Date(e.processedAt).toLocaleString('ja-JP');
+        return `<tr><td>${i+1}</td><td>${dt}</td><td>${e.count}件</td><td>${e.keys.length}キー</td></tr>`;
+      }).join('');
+      return `
+        <div class="histblock">
+          <div class="histhead">
+            <span><b>${SOURCES[sId].label}</b> <span class="badge">${arr.length}/5件保存中</span></span>
+            <button class="small danger" data-client="${c.id}" data-source="${sId}" data-action="clear">この履歴をクリア</button>
+          </div>
+          <div class="scroll"><table><thead><tr><th>#</th><th>取込日時</th><th>件数</th><th>キー数</th></tr></thead><tbody>${rows}</tbody></table></div>
+        </div>`;
+    }).join('');
+    return `<h4>${escapeHtml(c.name)}</h4>${blocks}`;
+  }).join('');
+  box.innerHTML = sections;
+
+  box.querySelectorAll('button[data-action="clear"]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      const cId = e.target.dataset.client;
+      const sId = e.target.dataset.source;
+      const clients = await SecureStore.loadClients();
+      const c = clients.find(x => x.id === cId);
+      if (!confirm(`「${c.name}」の「${SOURCES[sId].label}」履歴を削除します。\n以降は重複チェックがリセットされます。よろしいですか?`)) return;
+      await SecureStore.clearHistory(cId, sId);
+      await renderHistoryAll();
+    });
+  });
+}
+
+async function onExport(){
+  const data = await Auth.exportBackup();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ImportCore_バックアップ_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  $('bkMsg').innerHTML = '<span class="ok">バックアップをダウンロードしました</span>';
+}
+
+async function onImport(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('現在の設定データを上書きします。よろしいですか?')){
+    e.target.value = '';
+    return;
+  }
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    await Auth.importBackup(data);
+    SecureStore.invalidate();
+    $('bkMsg').innerHTML = '<span class="ok">復元しました</span>';
+    await renderClients();
+    await renderHistoryAll();
+  } catch (err){
+    $('bkMsg').innerHTML = `<span class="err">復元失敗:${err.message}</span>`;
+  }
+  e.target.value = '';
+}
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function flash(el, text){
+  const old = el.textContent;
+  el.textContent = text;
+  setTimeout(() => { el.textContent = old; }, 1000);
+}
+
+init().catch(e => { console.error(e); alert('エラー: ' + e.message); });
+</script>
+</body>
+</html>
