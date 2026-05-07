@@ -69,6 +69,37 @@ const SOURCES = {
     }
   },
 
+  // ---------------- Indeed (応募者ページからブックマークレット取込) ----------------
+  // 内部用source: 媒体ドロップダウンには出さない(internal: true)。
+  // 履歴・重複チェックは sId='indeed' に統合する(媒体名も「Indeed」で同じ)。
+  // ブックマークレットが整形した {name, kana, phone, ...} オブジェクトをそのまま受け取る。
+  indeed_page: {
+    id: 'indeed_page',
+    label: 'Indeed(応募者ページ)',
+    mediaName: 'Indeed',
+    internal: true, // ドロップダウンに表示しない
+    map: (row, ctx) => {
+      // row はブックマークレットからの整形済みオブジェクト
+      // {name, kana, phone, gender, birth, address, email, jobTitle, location, appliedDate}
+      const [by, bm, bd] = ctx.ymdFromBirth(row.birth || '');
+      return {
+        '応募日':   ctx.dateOnly(row.appliedDate || ''),
+        '求人番号': '',
+        '求人名称': row.jobTitle || '',
+        '応募職種': '',
+        '勤務地':   row.location || '',
+        '部署':     '',
+        '名前':     row.name || '',
+        'ふりがな': row.kana || '',
+        'メール':   row.email || '',
+        '電話':     ctx.formatPhone(row.phone || ''),
+        '性別':     row.gender || '',
+        '生年': by, '月': bm, '日': bd,
+        'メモ':     '',
+      };
+    }
+  },
+
   // ---------------- engage (CP932/Shift-JIS) ----------------
   engage: {
     id: 'engage',

@@ -528,3 +528,52 @@ table.editable .name-view {
   .summary > .koala-img { height: 50px; width: auto; }
   .summary .val { font-size: 18px; }
 }
+
+/* ===== Indeed応募者ページ取込モード ===== */
+.indeed-paste-box {
+  background: var(--mint-50);
+  border: 1px solid var(--mint-200);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+.indeed-paste-box h3 {
+  color: var(--mint-700);
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+.indeed-paste-box .note {
+  color: #555;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.indeed-paste-box code {
+  background: var(--mint-100);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.indeed-paste-box ol {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.indeed-paste-box details summary {
+  outline: none;
+}
+.bookmarklet-link {
+  display: inline-block;
+  padding: 10px 20px;
+  background: var(--mint-500);
+  color: #fff !important;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  border: 2px dashed var(--mint-700);
+}
+.bookmarklet-link:hover {
+  background: var(--mint-600);
+}
+.bookmarklet-link:active {
+  cursor: grabbing;
+}
