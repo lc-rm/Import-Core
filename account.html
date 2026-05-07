@@ -104,6 +104,10 @@ async function onAddUser(){
   const pw = $('newUserPw').value;
   const msg = $('userMsg');
 
+  if (!Auth.isAdmin(Auth.getCurrentUserId())){
+    msg.innerHTML = '<span class="err">ユーザー追加は管理者のみ実行できます</span>';
+    return;
+  }
   if (!/^[A-Za-z0-9_.@\-]{3,}$/.test(userId)){
     msg.innerHTML = '<span class="err">IDは半角英数字、_ - . @ のみ、3文字以上で入力してください</span>';
     return;
@@ -114,7 +118,7 @@ async function onAddUser(){
   }
 
   try {
-    await Auth.addUser(userId, pw);
+    await Auth.addUser(userId, pw, 'user');
     $('newUserId').value = '';
     $('newUserPw').value = '';
     msg.innerHTML = '<span class="ok">ユーザーを追加しました</span>';
@@ -127,32 +131,109 @@ async function onAddUser(){
 function renderUsers(){
   const users = Auth.loadUsers();
   const meId = Auth.getCurrentUserId();
+  const meIsAdmin = Auth.isAdmin(meId);
   const box = $('userList');
+
+  // 管理者でない場合は新規追加フォームを無効化
+  $('newUserId').disabled = !meIsAdmin;
+  $('newUserPw').disabled = !meIsAdmin;
+  $('addUserBtn').disabled = !meIsAdmin;
+  if (!meIsAdmin){
+    $('userMsg').innerHTML = '<span class="muted">※ ユーザー管理は管理者のみ実行できます</span>';
+  }
+
   if (users.length === 0){
     box.innerHTML = '<p class="muted">ユーザーがいません</p>';
     return;
   }
-  const head = '<tr><th>ユーザーID</th><th>作成日</th><th>操作</th></tr>';
+  const head = `<tr>
+    <th>ユーザーID</th>
+    <th>作成日</th>
+    <th>権限</th>
+    ${meIsAdmin ? '<th>操作</th>' : ''}
+  </tr>`;
   const body = users.map(u => {
     const isMe = u.userId === meId;
+    const isSuper = Auth.isSuperAdmin(u.userId);
+    const role = Auth.getRole(u.userId);
     const created = u.createdAt ? new Date(u.createdAt).toLocaleString('ja-JP') : '-';
+
+    let badges = '';
+    if (isMe) badges += ' <span class="badge">あなた</span>';
+
+    let roleLabel = '';
+    if (isSuper){
+      roleLabel = '<span class="role-super">🛡️ 絶対管理者</span>';
+    } else if (role === 'admin'){
+      roleLabel = '<span class="role-admin">🛡️ 管理者</span>';
+    } else {
+      roleLabel = '<span class="role-user">一般</span>';
+    }
+
+    let actions = '';
+    if (meIsAdmin){
+      const buttons = [];
+      if (isSuper){
+        buttons.push('<span class="muted">(操作不可)</span>');
+      } else {
+        if (role === 'admin'){
+          buttons.push(`<button class="small" data-id="${escapeHtml(u.userId)}" data-action="demote">管理者解除</button>`);
+        } else {
+          buttons.push(`<button class="small" data-id="${escapeHtml(u.userId)}" data-action="promote">管理者にする</button>`);
+        }
+        if (isMe){
+          buttons.push('<span class="muted">(自分は削除できません)</span>');
+        } else {
+          buttons.push(`<button class="small danger" data-id="${escapeHtml(u.userId)}" data-action="delete">削除</button>`);
+        }
+      }
+      actions = `<td>${buttons.join(' ')}</td>`;
+    }
+
     return `
       <tr>
-        <td>${escapeHtml(u.userId)}${isMe ? ' <span class="badge">あなた</span>' : ''}</td>
+        <td>${escapeHtml(u.userId)}${badges}</td>
         <td>${created}</td>
-        <td>
-          ${isMe ? '<span class="muted">(自分は削除できません)</span>'
-                 : `<button class="small danger" data-id="${escapeHtml(u.userId)}" data-action="delete">削除</button>`}
-        </td>
+        <td>${roleLabel}</td>
+        ${actions}
       </tr>`;
   }).join('');
   box.innerHTML = `<div class="scroll"><table>${head}${body}</table></div>`;
+
   box.querySelectorAll('button[data-action="delete"]').forEach(btn => {
     btn.addEventListener('click', async e => {
       const uid = e.target.dataset.id;
       if (!confirm(`ユーザー「${uid}」を削除します。よろしいですか?`)) return;
-      await Auth.deleteUser(uid);
-      renderUsers();
+      try {
+        await Auth.deleteUser(uid);
+        renderUsers();
+      } catch(err){
+        alert(err.message);
+      }
+    });
+  });
+  box.querySelectorAll('button[data-action="promote"]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      const uid = e.target.dataset.id;
+      if (!confirm(`「${uid}」を管理者にします。\n管理者はユーザーの追加・削除・権限変更ができるようになります。よろしいですか?`)) return;
+      try {
+        await Auth.setRole(uid, 'admin');
+        renderUsers();
+      } catch(err){
+        alert(err.message);
+      }
+    });
+  });
+  box.querySelectorAll('button[data-action="demote"]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      const uid = e.target.dataset.id;
+      if (!confirm(`「${uid}」の管理者権限を解除します。よろしいですか?`)) return;
+      try {
+        await Auth.setRole(uid, 'user');
+        renderUsers();
+      } catch(err){
+        alert(err.message);
+      }
     });
   });
 }

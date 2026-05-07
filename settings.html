@@ -239,7 +239,20 @@ async function renderHistoryAll(){
       if (arr.length === 0) return '';
       const rows = arr.map((e,i) => {
         const dt = new Date(e.processedAt).toLocaleString('ja-JP');
-        return `<tr><td>${i+1}</td><td>${dt}</td><td>${e.count}件</td><td>${e.keys.length}キー</td></tr>`;
+        const total = e.totalCount ?? e.count ?? 0;
+        const newC = e.newCount ?? e.count ?? 0;
+        const dupC = e.dupCount ?? 0;
+        const dlBtn = e.csv
+          ? `<button class="small" data-client="${c.id}" data-source="${sId}" data-processed="${e.processedAt}" data-action="download">📥CSV</button>`
+          : `<span class="muted" style="font-size:11px">―</span>`;
+        return `<tr>
+          <td>${i+1}</td>
+          <td>${dt}</td>
+          <td>${total}件</td>
+          <td class="ok">${newC}件</td>
+          <td class="dup">${dupC}件</td>
+          <td>${dlBtn}</td>
+        </tr>`;
       }).join('');
       return `
         <div class="histblock">
@@ -247,7 +260,7 @@ async function renderHistoryAll(){
             <span><b>${SOURCES[sId].label}</b> <span class="badge">${arr.length}/5件保存中</span></span>
             <button class="small danger" data-client="${c.id}" data-source="${sId}" data-action="clear">この履歴をクリア</button>
           </div>
-          <div class="scroll"><table><thead><tr><th>#</th><th>取込日時</th><th>件数</th><th>キー数</th></tr></thead><tbody>${rows}</tbody></table></div>
+          <div class="scroll"><table><thead><tr><th>#</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th></tr></thead><tbody>${rows}</tbody></table></div>
         </div>`;
     }).join('');
     return `<h4>${escapeHtml(c.name)}</h4>${blocks}`;
@@ -263,6 +276,27 @@ async function renderHistoryAll(){
       if (!confirm(`「${c.name}」の「${SOURCES[sId].label}」履歴を削除します。\n以降は重複チェックがリセットされます。よろしいですか?`)) return;
       await SecureStore.clearHistory(cId, sId);
       await renderHistoryAll();
+    });
+  });
+  // CSV再ダウンロードボタン
+  box.querySelectorAll('button[data-action="download"]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      const cId = e.target.dataset.client;
+      const sId = e.target.dataset.source;
+      const processed = e.target.dataset.processed;
+      const all = await SecureStore.getAllHistory();
+      const arr = (all[cId] && all[cId][sId]) || [];
+      const entry = arr.find(x => x.processedAt === processed);
+      if (!entry || !entry.csv){
+        alert('このCSVデータは保持されていません(直近1回分のみ再ダウンロード可能です)');
+        return;
+      }
+      const blob = new Blob([entry.csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = entry.filename || 'export.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
     });
   });
 }

@@ -486,6 +486,35 @@ table.editable .name-view {
   color: var(--orange-500);
 }
 
+/* 権限ラベル */
+.role-super {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #ffd700, #ffa500);
+  color: #fff;
+}
+.role-admin {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--mint-500);
+  color: #fff;
+}
+.role-user {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
 /* --------- レスポンシブ --------- */
 @media (max-width: 640px){
   header { padding: 12px 16px; }

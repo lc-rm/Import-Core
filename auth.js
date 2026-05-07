@@ -10,6 +10,8 @@
 // =====================================================================
 
 const LS_USERS = 'ic_users_v1';
+// 絶対管理者(コードで固定、削除・降格不可)
+const SUPER_ADMIN_ID = 'r_murai@link-core.co.jp';
 const LS_ENC_DATA = 'ic_encdata_v1';
 const SS_AUTH = 'ic_auth';
 
@@ -96,25 +98,58 @@ const Auth = {
     localStorage.setItem(LS_USERS, JSON.stringify(list));
   },
 
-  async addUser(userId, password){
+  async addUser(userId, password, role = 'user'){
     const users = Auth.loadUsers();
     if (users.some(u => u.userId === userId)){
       throw new Error('同じIDのユーザーが既に存在します');
     }
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const hash = await hashPassword(password, salt);
+    // 絶対管理者IDは常にadmin
+    const finalRole = (userId === SUPER_ADMIN_ID) ? 'admin' : role;
     users.push({
       userId,
       salt: bufToB64(salt),
       hash,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      role: finalRole
     });
     Auth.saveUsers(users);
     return true;
   },
 
   async deleteUser(userId){
+    if (userId === SUPER_ADMIN_ID){
+      throw new Error('このユーザーは削除できません');
+    }
     const users = Auth.loadUsers().filter(u => u.userId !== userId);
+    Auth.saveUsers(users);
+  },
+
+  // 権限関連ヘルパー
+  isSuperAdmin(userId){
+    return userId === SUPER_ADMIN_ID;
+  },
+  getRole(userId){
+    if (userId === SUPER_ADMIN_ID) return 'admin';
+    const users = Auth.loadUsers();
+    const u = users.find(x => x.userId === userId);
+    return u?.role || 'user';
+  },
+  isAdmin(userId){
+    return Auth.getRole(userId) === 'admin';
+  },
+  async setRole(userId, newRole){
+    if (userId === SUPER_ADMIN_ID && newRole !== 'admin'){
+      throw new Error('絶対管理者の権限は変更できません');
+    }
+    if (newRole !== 'admin' && newRole !== 'user'){
+      throw new Error('不正な権限です');
+    }
+    const users = Auth.loadUsers();
+    const u = users.find(x => x.userId === userId);
+    if (!u) throw new Error('ユーザーが見つかりません');
+    u.role = newRole;
     Auth.saveUsers(users);
   },
 
