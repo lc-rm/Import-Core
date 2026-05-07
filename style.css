@@ -327,6 +327,13 @@ table.editable input {
   font-size: 13px;
   border-radius: 8px;
 }
+table.editable .name-view {
+  display: inline-block;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-900);
+}
 .scroll { overflow-x: auto; }
 
 /* --------- 結果サマリー --------- */

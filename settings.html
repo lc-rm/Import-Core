@@ -147,55 +147,69 @@ async function renderClients(){
   }
   const head = `<tr><th>名前</th><th>操作</th></tr>`;
   const body = list.map(c => `
-    <tr data-id="${c.id}">
-      <td><input type="text" value="${escapeHtml(c.name)}" data-field="name" /></td>
+    <tr data-id="${c.id}" data-name="${escapeHtml(c.name)}">
+      <td class="name-cell"><span class="name-view">${escapeHtml(c.name)}</span></td>
       <td>
+        <button class="small" data-action="edit">変更</button>
         <button class="small danger" data-action="delete">削除</button>
       </td>
     </tr>
   `).join('');
   box.innerHTML = `<div class="scroll"><table class="editable">${head}${body}</table></div>`;
   box.querySelectorAll('button').forEach(btn => btn.addEventListener('click', onClientAction));
-  // 入力欄から離れた時に自動保存
-  box.querySelectorAll('input[data-field="name"]').forEach(inp => {
-    inp.addEventListener('blur', onClientAutoSave);
+}
+
+function enterEditMode(tr){
+  const id = tr.dataset.id;
+  const name = tr.dataset.name;
+  tr.querySelector('.name-cell').innerHTML = `<input type="text" value="${escapeHtml(name)}" data-field="name" />`;
+  tr.querySelector('td:last-child').innerHTML = `
+    <button class="small" data-action="save">保存</button>
+    <button class="small" data-action="cancel">キャンセル</button>
+  `;
+  tr.querySelectorAll('button').forEach(btn => btn.addEventListener('click', onClientAction));
+  const inp = tr.querySelector('input');
+  inp.focus();
+  inp.select();
+  // Enterで保存
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){ e.preventDefault(); tr.querySelector('button[data-action="save"]').click(); }
+    if (e.key === 'Escape'){ tr.querySelector('button[data-action="cancel"]').click(); }
   });
 }
 
-async function onClientAutoSave(e){
-  const tr = e.target.closest('tr');
-  const id = tr.dataset.id;
-  const newName = e.target.value.trim();
-  if (!newName){ alert('名前を空にはできません'); return; }
-  const clients = await SecureStore.loadClients();
-  const target = clients.find(c => c.id === id);
-  if (!target || target.name === newName) return;
-  if (clients.some(c => c.id !== id && c.name === newName)){
-    alert('同じ名前のクライアントが既に存在します');
-    e.target.value = target.name;
-    return;
-  }
-  await SecureStore.updateClient(id, { name: newName });
-  flash(e.target, '保存しました');
+function exitEditMode(tr, newName){
+  if (newName) tr.dataset.name = newName;
+  const name = tr.dataset.name;
+  tr.querySelector('.name-cell').innerHTML = `<span class="name-view">${escapeHtml(name)}</span>`;
+  tr.querySelector('td:last-child').innerHTML = `
+    <button class="small" data-action="edit">変更</button>
+    <button class="small danger" data-action="delete">削除</button>
+  `;
+  tr.querySelectorAll('button').forEach(btn => btn.addEventListener('click', onClientAction));
 }
 
 async function onClientAction(e){
   const tr = e.target.closest('tr');
   const id = tr.dataset.id;
   const action = e.target.dataset.action;
-  if (action === 'save'){
-    const patch = {};
-    tr.querySelectorAll('input[data-field]').forEach(inp => {
-      patch[inp.dataset.field] = inp.value.trim();
-    });
-    if (!patch.name){ alert('名前を空にはできません'); return; }
+  if (action === 'edit'){
+    enterEditMode(tr);
+  } else if (action === 'cancel'){
+    exitEditMode(tr);
+  } else if (action === 'save'){
+    const inp = tr.querySelector('input[data-field="name"]');
+    const newName = inp.value.trim();
+    if (!newName){ alert('名前を空にはできません'); inp.focus(); return; }
     const clients = await SecureStore.loadClients();
-    if (clients.some(c => c.id !== id && c.name === patch.name)){
+    if (clients.some(c => c.id !== id && c.name === newName)){
       alert('同じ名前のクライアントが既に存在します');
+      inp.focus(); inp.select();
       return;
     }
-    await SecureStore.updateClient(id, patch);
-    flash(e.target, '保存');
+    await SecureStore.updateClient(id, { name: newName });
+    exitEditMode(tr, newName);
+    flash(tr.querySelector('button[data-action="edit"]'), '保存しました');
   } else if (action === 'delete'){
     const clients = await SecureStore.loadClients();
     const c = clients.find(x => x.id === id);
