@@ -47,7 +47,7 @@
     <div class="note">ツールを利用するユーザーを追加・削除できます。各ユーザーは独立したパスワードでログインします。<br>
     <b style="color: var(--orange-500)">⚠️ 重要</b>:暗号化されたデータ(クライアント・履歴)は<b>現在ログイン中のパスワードと紐づいています</b>。新規ユーザーは別アカウントとして扱われ、独自のデータ領域を持ちます(共有はされません)。チームで同じデータを共有する場合は、同じユーザーIDで複数人がログインしてください。</div>
 
-    <h3>新規ユーザーを追加</h3>
+    <h3 class="section-h3">新規ユーザーを追加</h3>
     <div class="row">
       <label>ユーザーID<input type="text" id="newUserId" placeholder="メールアドレス または 任意のID(3文字以上)" /></label>
       <label>パスワード<input type="password" id="newUserPw" placeholder="6文字以上" /></label>
@@ -55,7 +55,7 @@
     <button id="addUserBtn">ユーザーを追加</button>
     <span id="userMsg" class="muted" style="margin-left:12px"></span>
 
-    <h3 style="margin-top:24px">登録済みユーザー</h3>
+    <h3 class="section-h3" style="margin-top:24px">登録済みユーザー</h3>
     <div id="userList"></div>
   </div>
 </main>

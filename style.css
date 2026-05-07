@@ -113,7 +113,16 @@ main {
 
 h1 { font-size: 22px; margin: 0 0 10px; color: var(--gray-900); font-weight: 800; }
 h2 { font-size: 17px; margin: 0 0 8px; color: var(--gray-900); font-weight: 800; }
-h3 { font-size: 14px; margin: 18px 0 8px; color: var(--gray-700); font-weight: 700; }
+h3 { font-size: 15px; margin: 18px 0 8px; color: var(--gray-700); font-weight: 700; }
+
+/* セクション開始の見出し(新規追加など、目立たせたい) */
+h3.section-h3 {
+  font-size: 17px;
+  color: var(--mint-700);
+  padding: 8px 0 8px 14px;
+  border-left: 4px solid var(--mint-500);
+  margin: 24px 0 16px;
+}
 h4 { font-size: 13px; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--gray-200); color: var(--gray-700); }
 
 .note { color: var(--gray-500); margin-bottom: 14px; font-size: 13px; }
