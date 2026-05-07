@@ -62,8 +62,8 @@ header {
   letter-spacing: 0.02em;
 }
 .brand img {
-  width: 32px;
   height: 32px;
+  width: auto;
   object-fit: contain;
 }
 nav { display: flex; gap: 4px; }
@@ -138,9 +138,10 @@ h4 { font-size: 13px; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1p
   margin-bottom: 4px;
 }
 .card-header-with-koala img {
-  width: 56px;
   height: 56px;
+  width: auto;
   flex-shrink: 0;
+  object-fit: contain;
 }
 .card-header-with-koala h1,
 .card-header-with-koala h2 { margin: 0; }
@@ -258,10 +259,11 @@ button.ghost:hover:not(:disabled) {
   color: var(--gray-500);
 }
 #drop .koala-drop {
-  width: 64px;
-  height: 64px;
+  height: 80px;
+  width: auto;
   margin: 0 auto 8px;
   display: block;
+  object-fit: contain;
 }
 
 /* --------- テーブル --------- */
@@ -307,9 +309,10 @@ table.editable input {
   align-items: center;
 }
 .summary > .koala-img {
-  width: 70px;
   height: 70px;
+  width: auto;
   flex-shrink: 0;
+  object-fit: contain;
 }
 .summary > .stats { display: flex; gap: 28px; flex-wrap: wrap; }
 .summary > .stats > div { display: flex; flex-direction: column; gap: 2px; }
@@ -367,9 +370,10 @@ table.editable input {
 }
 .auth-card .auth-koala {
   display: block;
-  width: 100px;
   height: 100px;
+  width: auto;
   margin: 0 auto 16px;
+  object-fit: contain;
 }
 .auth-card h1 {
   text-align: center;
@@ -419,10 +423,11 @@ table.editable input {
   color: var(--gray-500);
 }
 .hero-empty img {
-  width: 110px;
   height: 110px;
+  width: auto;
   margin-bottom: 12px;
   opacity: 0.9;
+  object-fit: contain;
 }
 .hero-empty p { margin: 4px 0; }
 
@@ -451,6 +456,6 @@ table.editable input {
   .row { gap: 10px; }
   select, input { min-width: 100%; }
   .summary { padding: 14px; gap: 14px; }
-  .summary > .koala-img { width: 50px; height: 50px; }
+  .summary > .koala-img { height: 50px; width: auto; }
   .summary .val { font-size: 18px; }
 }
