@@ -64,7 +64,7 @@
   </div>
 
   <div class="card" id="historyCard">
-    <h2>このクライアント × 媒体の取込履歴(直近5回)</h2>
+    <h2>このクライアントの取込履歴(媒体ごとに直近5回)</h2>
     <div id="historyList" class="muted">クライアントと媒体を選ぶと表示されます</div>
   </div>
 </main>
@@ -148,23 +148,62 @@ async function populateClients(){
 
 async function refreshHistory(){
   const cId = $('client').value;
-  const sId = $('source').value;
   const box = $('historyList');
   if (!cId){ box.textContent = 'クライアント未選択'; return; }
-  const entries = await SecureStore.getHistory(cId, sId);
-  if (entries.length === 0){
+  const all = await SecureStore.getAllHistory();
+  const byClient = (all && all[cId]) || {};
+  // 全媒体の履歴を集めて時系列降順にソート
+  const flat = [];
+  for (const sId in byClient){
+    for (const e of (byClient[sId] || [])){
+      flat.push({ sId, ...e });
+    }
+  }
+  flat.sort((a,b) => new Date(b.processedAt) - new Date(a.processedAt));
+  if (flat.length === 0){
     box.innerHTML = '<span class="muted">履歴なし(初回取込時に作成されます)</span>';
     return;
   }
-  const rows = entries.map((e,i) => {
+  const rows = flat.map((e,i) => {
     const dt = new Date(e.processedAt).toLocaleString('ja-JP');
-    return `<tr><td>${i+1}</td><td>${dt}</td><td>${e.count}件</td><td>${e.keys.length}キー</td></tr>`;
+    const sLabel = (SOURCES[e.sId] && SOURCES[e.sId].label) || e.sId;
+    const total = e.totalCount ?? e.count ?? 0;
+    const newC = e.newCount ?? e.count ?? 0;
+    const dupC = e.dupCount ?? 0;
+    const dlBtn = e.csv
+      ? `<button class="small" onclick="redownloadHistory('${cId}','${e.sId}','${e.processedAt}')">📥CSV</button>`
+      : `<span class="muted" style="font-size:11px">―</span>`;
+    return `<tr>
+      <td>${i+1}</td>
+      <td><b>${escapeHtml(sLabel)}</b></td>
+      <td>${dt}</td>
+      <td>${total}件</td>
+      <td class="ok">${newC}件</td>
+      <td class="dup">${dupC}件</td>
+      <td>${dlBtn}</td>
+    </tr>`;
   }).join('');
   box.innerHTML = `
     <table>
-      <thead><tr><th>#</th><th>取込日時</th><th>取込件数</th><th>記録キー</th></tr></thead>
+      <thead><tr><th>#</th><th>媒体</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+async function redownloadHistory(clientId, sourceId, processedAt){
+  const all = await SecureStore.getAllHistory();
+  const arr = (all[clientId] && all[clientId][sourceId]) || [];
+  const entry = arr.find(e => e.processedAt === processedAt);
+  if (!entry || !entry.csv){
+    alert('このCSVデータは保持されていません(直近1回分のみ再ダウンロード可能です)');
+    return;
+  }
+  const blob = new Blob([entry.csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = entry.filename || 'export.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 async function handleFile(file){
@@ -287,7 +326,14 @@ async function downloadCsv(){
   for (const r of lastNewRecords){
     for (const k of makeKeys(r)) keys.push(k);
   }
-  await SecureStore.appendHistory(cId, sId, keys, lastNewRecords.length);
+  const totalCount = lastNewRecords.length + lastDuplicates.length;
+  await SecureStore.appendHistory(cId, sId, keys, lastNewRecords.length, {
+    totalCount,
+    newCount: lastNewRecords.length,
+    dupCount: lastDuplicates.length,
+    csv,
+    filename: fname
+  });
   await refreshHistory();
   $('msg').innerHTML = `<span class="ok">${lastNewRecords.length}件をCSVに出力し、履歴に記録しました</span>`;
 }
@@ -296,6 +342,7 @@ function escapeHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+window.redownloadHistory = redownloadHistory;
 init().catch(e => { console.error(e); $('msg').innerHTML = `<span class="err">${e.message}</span>`; });
 </script>
 </body>

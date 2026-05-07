@@ -310,18 +310,30 @@ const SecureStore = {
     }
     return set;
   },
-  async appendHistory(clientId, sourceId, keys, count){
+  async appendHistory(clientId, sourceId, keys, count, extras = {}){
     const d = await SecureStore._get();
     if (!d.history[clientId]) d.history[clientId] = {};
     if (!d.history[clientId][sourceId]) d.history[clientId][sourceId] = [];
     const entry = {
       processedAt: new Date().toISOString(),
       count,
-      keys: Array.from(new Set(keys))
+      keys: Array.from(new Set(keys)),
+      // 件数の内訳
+      totalCount: extras.totalCount ?? count,
+      newCount: extras.newCount ?? count,
+      dupCount: extras.dupCount ?? 0,
+      // 直近のCSVデータ(再ダウンロード用)
+      csv: extras.csv || '',
+      filename: extras.filename || ''
     };
     d.history[clientId][sourceId].unshift(entry);
+    // 履歴は最大5件、ただしCSVデータは直近1件のみ保持(容量節約)
     if (d.history[clientId][sourceId].length > 5){
       d.history[clientId][sourceId] = d.history[clientId][sourceId].slice(0, 5);
+    }
+    for (let i = 1; i < d.history[clientId][sourceId].length; i++){
+      d.history[clientId][sourceId][i].csv = '';
+      d.history[clientId][sourceId][i].filename = '';
     }
     await SecureStore._save();
   },
