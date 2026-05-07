@@ -86,7 +86,6 @@ async function init(){
   $('currentUser').textContent = Auth.getCurrentUserId();
   $('logoutBtn').onclick = () => { Auth.clearSession(); location.href = 'login.html'; };
 
-  $('applyDate').value = new Date().toISOString().slice(0,10);
   populateSources();
   await populateClients();
   await refreshHistory();
