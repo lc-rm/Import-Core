@@ -150,13 +150,33 @@ async function renderClients(){
     <tr data-id="${c.id}">
       <td><input type="text" value="${escapeHtml(c.name)}" data-field="name" /></td>
       <td>
-        <button class="small" data-action="save">保存</button>
         <button class="small danger" data-action="delete">削除</button>
       </td>
     </tr>
   `).join('');
   box.innerHTML = `<div class="scroll"><table class="editable">${head}${body}</table></div>`;
   box.querySelectorAll('button').forEach(btn => btn.addEventListener('click', onClientAction));
+  // 入力欄から離れた時に自動保存
+  box.querySelectorAll('input[data-field="name"]').forEach(inp => {
+    inp.addEventListener('blur', onClientAutoSave);
+  });
+}
+
+async function onClientAutoSave(e){
+  const tr = e.target.closest('tr');
+  const id = tr.dataset.id;
+  const newName = e.target.value.trim();
+  if (!newName){ alert('名前を空にはできません'); return; }
+  const clients = await SecureStore.loadClients();
+  const target = clients.find(c => c.id === id);
+  if (!target || target.name === newName) return;
+  if (clients.some(c => c.id !== id && c.name === newName)){
+    alert('同じ名前のクライアントが既に存在します');
+    e.target.value = target.name;
+    return;
+  }
+  await SecureStore.updateClient(id, { name: newName });
+  flash(e.target, '保存しました');
 }
 
 async function onClientAction(e){
