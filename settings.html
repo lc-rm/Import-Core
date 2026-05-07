@@ -52,7 +52,8 @@
 
   <div class="card">
     <h2>取込履歴管理</h2>
-    <div class="note">クライアント × 媒体ごとに過去5回分の取込履歴(重複チェックに使用)を確認・削除できます。</div>
+    <div class="note">全クライアント横断で<b>直近5件</b>の取込履歴を表示します。誤って取り込んだ場合は「削除」で1件単位で消せます。<br>
+    クライアントごとの全履歴(各媒体最大5件)は<a href="index.html">変換ページ</a>で確認できます。</div>
     <div id="historyAll"></div>
   </div>
 
@@ -228,56 +229,73 @@ async function renderHistoryAll(){
     box.innerHTML = '<p class="muted">クライアントが未登録です</p>';
     return;
   }
-  const sections = clients.map(c => {
-    const byClient = all[c.id] || {};
-    const hasAny = Object.values(byClient).some(arr => (arr || []).length > 0);
-    if (!hasAny){
-      return `<h4>${escapeHtml(c.name)}</h4><p class="muted">履歴なし</p>`;
-    }
-    const blocks = Object.keys(SOURCES).map(sId => {
-      const arr = byClient[sId] || [];
-      if (arr.length === 0) return '';
-      const rows = arr.map((e,i) => {
-        const dt = new Date(e.processedAt).toLocaleString('ja-JP');
-        const total = e.totalCount ?? e.count ?? 0;
-        const newC = e.newCount ?? e.count ?? 0;
-        const dupC = e.dupCount ?? 0;
-        const dlBtn = e.csv
-          ? `<button class="small" data-client="${c.id}" data-source="${sId}" data-processed="${e.processedAt}" data-action="download">📥CSV</button>`
-          : `<span class="muted" style="font-size:11px">―</span>`;
-        return `<tr>
-          <td>${i+1}</td>
-          <td>${dt}</td>
-          <td>${total}件</td>
-          <td class="ok">${newC}件</td>
-          <td class="dup">${dupC}件</td>
-          <td>${dlBtn}</td>
-        </tr>`;
-      }).join('');
-      return `
-        <div class="histblock">
-          <div class="histhead">
-            <span><b>${SOURCES[sId].label}</b> <span class="badge">${arr.length}/5件保存中</span></span>
-            <button class="small danger" data-client="${c.id}" data-source="${sId}" data-action="clear">この履歴をクリア</button>
-          </div>
-          <div class="scroll"><table><thead><tr><th>#</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th></tr></thead><tbody>${rows}</tbody></table></div>
-        </div>`;
-    }).join('');
-    return `<h4>${escapeHtml(c.name)}</h4>${blocks}`;
-  }).join('');
-  box.innerHTML = sections;
 
-  box.querySelectorAll('button[data-action="clear"]').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      const cId = e.target.dataset.client;
-      const sId = e.target.dataset.source;
-      const clients = await SecureStore.loadClients();
-      const c = clients.find(x => x.id === cId);
-      if (!confirm(`「${c.name}」の「${SOURCES[sId].label}」履歴を削除します。\n以降は重複チェックがリセットされます。よろしいですか?`)) return;
-      await SecureStore.clearHistory(cId, sId);
-      await renderHistoryAll();
-    });
-  });
+  // クライアントID → 名前のマップ
+  const clientName = {};
+  for (const c of clients) clientName[c.id] = c.name;
+
+  // 全クライアント・全媒体の履歴を1つの配列に集約
+  const flat = [];
+  for (const cId in all){
+    // 削除されたクライアントの履歴は無視
+    if (!clientName[cId]) continue;
+    const byClient = all[cId] || {};
+    for (const sId in byClient){
+      const arr = byClient[sId] || [];
+      for (const e of arr){
+        flat.push({ cId, sId, ...e });
+      }
+    }
+  }
+
+  if (flat.length === 0){
+    box.innerHTML = '<p class="muted">履歴がありません(変換ページで取込を行うと記録されます)</p>';
+    return;
+  }
+
+  // 時系列降順にソート、上位5件を抜粋
+  flat.sort((a, b) => new Date(b.processedAt) - new Date(a.processedAt));
+  const top = flat.slice(0, 5);
+
+  const rows = top.map((e, i) => {
+    const dt = new Date(e.processedAt).toLocaleString('ja-JP');
+    const cName = clientName[e.cId] || e.cId;
+    const sLabel = (SOURCES[e.sId] && SOURCES[e.sId].label) || e.sId;
+    const total = e.totalCount ?? e.count ?? 0;
+    const newC = e.newCount ?? e.count ?? 0;
+    const dupC = e.dupCount ?? 0;
+    const dlBtn = e.csv
+      ? `<button class="small" data-client="${e.cId}" data-source="${e.sId}" data-processed="${e.processedAt}" data-action="download">📥CSV</button>`
+      : `<span class="muted" style="font-size:11px">―</span>`;
+    const delBtn = `<button class="small danger" data-client="${e.cId}" data-source="${e.sId}" data-processed="${e.processedAt}" data-action="delete">削除</button>`;
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${dt}</td>
+      <td>${escapeHtml(cName)}</td>
+      <td><b>${escapeHtml(sLabel)}</b></td>
+      <td>${total}件</td>
+      <td class="ok">${newC}件</td>
+      <td class="dup">${dupC}件</td>
+      <td>${dlBtn}</td>
+      <td>${delBtn}</td>
+    </tr>`;
+  }).join('');
+
+  const note = flat.length > 5
+    ? `<div class="muted" style="margin-top:8px;font-size:12px">直近5件を表示中(全${flat.length}件)。クライアントごとの全履歴は<a href="index.html">変換ページ</a>で確認できます。</div>`
+    : '';
+
+  box.innerHTML = `
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>取込日時</th><th>クライアント</th><th>媒体</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th><th>操作</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${note}`;
+
   // CSV再ダウンロードボタン
   box.querySelectorAll('button[data-action="download"]').forEach(btn => {
     btn.addEventListener('click', async e => {
@@ -297,6 +315,27 @@ async function renderHistoryAll(){
       a.download = entry.filename || 'export.csv';
       a.click();
       URL.revokeObjectURL(a.href);
+    });
+  });
+
+  // 削除ボタン
+  box.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      const cId = e.target.dataset.client;
+      const sId = e.target.dataset.source;
+      const processed = e.target.dataset.processed;
+      const cName = clientName[cId] || cId;
+      const sLabel = (SOURCES[sId] && SOURCES[sId].label) || sId;
+      const dt = new Date(processed).toLocaleString('ja-JP');
+      const msg =
+        `以下の履歴を削除します。よろしいですか?\n\n` +
+        `クライアント: ${cName}\n` +
+        `媒体: ${sLabel}\n` +
+        `取込日時: ${dt}\n\n` +
+        `※ 削除すると、この回に取り込んだ応募者の重複チェックが効かなくなります。`;
+      if (!confirm(msg)) return;
+      await SecureStore.deleteHistoryEntry(cId, sId, processed);
+      await renderHistoryAll();
     });
   });
 }

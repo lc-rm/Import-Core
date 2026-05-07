@@ -377,6 +377,18 @@ const SecureStore = {
     if (d.history[clientId]) delete d.history[clientId][sourceId];
     await SecureStore._save();
   },
+  // 履歴1件だけ削除(processedAt で識別)
+  async deleteHistoryEntry(clientId, sourceId, processedAt){
+    const d = await SecureStore._get();
+    if (!d.history[clientId] || !d.history[clientId][sourceId]) return;
+    d.history[clientId][sourceId] = d.history[clientId][sourceId]
+      .filter(e => e.processedAt !== processedAt);
+    // 空になったらキーごと削除
+    if (d.history[clientId][sourceId].length === 0){
+      delete d.history[clientId][sourceId];
+    }
+    await SecureStore._save();
+  },
   async getAllHistory(){
     const d = await SecureStore._get();
     return d.history;
