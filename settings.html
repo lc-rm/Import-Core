@@ -36,7 +36,6 @@
     <h3>新規追加</h3>
     <div class="row">
       <label>クライアント名<input id="newName" placeholder="例:有限会社シード" /></label>
-      <label>備考(任意)<input id="newNote" placeholder="メモ" /></label>
     </div>
     <button id="addBtn">クライアントを追加</button>
     <span id="addMsg" class="muted" style="margin-left:12px"></span>
@@ -95,11 +94,9 @@ async function onAdd(){
     return;
   }
   await SecureStore.addClient({
-    name,
-    note: $('newNote').value.trim()
+    name
   });
   $('newName').value = '';
-  $('newNote').value = '';
   $('addMsg').innerHTML = '<span class="ok">追加しました</span>';
   setTimeout(() => $('addMsg').innerHTML = '', 1500);
   await renderClients();
@@ -117,11 +114,10 @@ async function renderClients(){
       </div>`;
     return;
   }
-  const head = `<tr><th>名前</th><th>備考</th><th>操作</th></tr>`;
+  const head = `<tr><th>名前</th><th>操作</th></tr>`;
   const body = list.map(c => `
     <tr data-id="${c.id}">
       <td><input type="text" value="${escapeHtml(c.name)}" data-field="name" /></td>
-      <td><input type="text" value="${escapeHtml(c.note || '')}" data-field="note" /></td>
       <td>
         <button class="small" data-action="save">保存</button>
         <button class="small danger" data-action="delete">削除</button>
