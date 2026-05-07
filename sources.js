@@ -7,11 +7,11 @@
 
 const SOURCES = {
 
-  // ---------------- JOBこあ(ジョブオプ採用管理 / Indeed PLUS 出力) ----------------
-  jobcore: {
-    id: 'jobcore',
-    label: 'JOBこあ(ジョブオプ)',
-    mediaName: 'JOBこあ',
+  // ---------------- ジョブオプ採用管理 / Indeed PLUS 出力 ----------------
+  jobop: {
+    id: 'jobop',
+    label: 'ジョブオプ',
+    mediaName: 'ジョブオプ',
     fileTypes: '.xls,.xlsx,.csv',
     map: (row, ctx) => {
       const get = (n) => ctx.get(row, n);
