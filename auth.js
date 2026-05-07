@@ -39,16 +39,17 @@ async function deriveKey(password, salt){
 }
 
 // ----- パスワードのハッシュ化(認証用、復号には使わない) -----
+// PBKDF2 で deriveBits を使って固定長のハッシュを得る(ソルト付き)
 async function hashPassword(password, salt){
-  const key = await deriveKey(password, salt);
-  // キーをエクスポートしてハッシュ代わりに使う
-  const exported = await crypto.subtle.exportKey('raw', await crypto.subtle.importKey(
-    'raw', enc.encode(password + bufToB64(salt)), 'PBKDF2', false, ['deriveBits']
-  ));
-  const hashBuf = await crypto.subtle.digest('SHA-256',
-    enc.encode(password + bufToB64(salt))
+  const baseKey = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']
   );
-  return bufToB64(hashBuf);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    baseKey,
+    256
+  );
+  return bufToB64(bits);
 }
 
 // ----- データ暗号化/復号 -----
