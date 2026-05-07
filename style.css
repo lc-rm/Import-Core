@@ -156,35 +156,52 @@ h4 { font-size: 13px; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1p
 }
 .row label {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--gray-700);
 }
 select, input[type="text"], input[type="password"], input[type="date"], input[type="email"] {
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  background: #fff;
+  min-width: 220px;
+  font-family: inherit;
+  color: var(--gray-900);
+  transition: all 0.15s;
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: var(--mint-400);
+  box-shadow: 0 0 0 3px var(--mint-100);
+}
+select { cursor: pointer; }
+
+/* 主役の大きな入力欄(クライアント追加など) */
+input.big-input {
   font-size: 16px;
   padding: 16px 18px;
   border: 2px solid var(--gray-200);
   border-radius: 12px;
   background: var(--mint-50);
-  min-width: 220px;
-  font-family: inherit;
-  color: var(--gray-900);
   font-weight: 500;
-  transition: all 0.15s;
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
-select:hover, input[type="text"]:hover, input[type="password"]:hover, input[type="date"]:hover, input[type="email"]:hover {
+input.big-input:hover {
   border-color: var(--mint-300);
   background: #fff;
 }
-select:focus, input:focus {
-  outline: none;
+input.big-input:focus {
   border-color: var(--mint-500);
   background: #fff;
   box-shadow: 0 0 0 4px var(--mint-100);
 }
-select { cursor: pointer; }
+label.big-label {
+  font-size: 13px;
+  gap: 8px;
+}
 
 button {
   border: 0;
