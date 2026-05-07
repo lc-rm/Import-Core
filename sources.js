@@ -202,7 +202,7 @@ const SOURCES = {
   // ---------------- その他(汎用カスタム枠) ----------------
   other: {
     id: 'other',
-    label: 'その他(汎用)',
+    label: 'その他',
     mediaName: 'その他',
     fileTypes: '.xls,.xlsx,.csv',
     placeholder: true,
