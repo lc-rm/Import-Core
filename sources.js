@@ -79,14 +79,13 @@ const SOURCES = {
     map: (row, ctx) => {
       const get = (n) => ctx.get(row, n);
       const [by, bm, bd] = ctx.ymdFromBirth(get('生年月日'));
-      // 氏名は姓+名で結合(全角/半角カッコ両対応)
-      const lastName  = ctx.norm(get('氏名(姓)') || get('氏名(姓)'));
-      const firstName = ctx.norm(get('氏名(名)') || get('氏名(名)'));
-      const lastKana  = ctx.norm(get('氏名フリガナ(姓)') || get('氏名フリガナ(姓)'));
-      const firstKana = ctx.norm(get('氏名フリガナ(名)') || get('氏名フリガナ(名)'));
+      // 氏名は姓+名で結合(get関数が全角/半角カッコ自動対応)
+      const lastName  = ctx.norm(get('氏名(姓)'));
+      const firstName = ctx.norm(get('氏名(名)'));
+      const lastKana  = ctx.norm(get('氏名フリガナ(姓)'));
+      const firstKana = ctx.norm(get('氏名フリガナ(名)'));
 
       const addr = [
-        ctx.norm(get('郵便番号')),
         ctx.norm(get('都道府県')) + ctx.norm(get('市区町村')) + ctx.norm(get('以降の住所'))
       ].filter(x => x).join(' ');
 
@@ -104,9 +103,8 @@ const SOURCES = {
         '性別':     get('性別'),
         '生年': by, '月': bm, '日': bd,
         'メモ':     [
+          get('郵便番号') ? '〒' + get('郵便番号') : '',
           addr ? '住所: ' + addr : '',
-          get('対応状況メモ') || '',
-          get('メッセージ') || '',
           get('自己PR') ? 'PR: ' + ctx.norm(get('自己PR')).slice(0, 200) : ''
         ].filter(x => x).join(' / '),
       };
@@ -123,28 +121,26 @@ const SOURCES = {
     map: (row, ctx) => {
       const get = (n) => ctx.get(row, n);
       const [by, bm, bd] = ctx.ymdFromBirth(get('生年月日'));
-      // 住所末尾の「(国:日本)」のような付加情報を除去
-      const addr = ctx.norm(get('住所')).replace(/\s*[((]国[::].*$/, '').trim();
+      // 住所末尾の「(国:日本)」のような付加情報を除去(全角・半角両対応)
+      const addr = ctx.norm(get('住所')).replace(/\s*[(（]\s*国\s*[:：][^)）]*[)）]?.*$/, '').trim();
 
       return {
         '応募日':   ctx.dateOnly(get('応募日時')),
         '求人番号': '',
-        '求人名称': get('職種名') || get('キャッチフレーズ'),
+        '求人名称': get('職種名'),
         '応募職種': get('職種1'),
-        '勤務地':   get('応募勤務地') || get('面接地登録地'),
+        '勤務地':   get('応募勤務地'),
         '部署':     '',
         '名前':     get('応募者名'),
-        'ふりがな': get('ふりがな'),
+        'ふりがな': '',
         'メール':   get('メールアドレス'),
         '電話':     ctx.formatPhone(get('電話番号')),
         '性別':     get('性別'),
         '生年': by, '月': bm, '日': bd,
         'メモ':     [
+          get('郵便番号') ? '〒' + get('郵便番号') : '',
           addr ? '住所: ' + addr : '',
-          get('応募雇用形態') ? '雇用: ' + get('応募雇用形態') : '',
-          get('現在の職業(現在の職業補足)') || get('現在の職業(現在の職業補足)') || '',
-          get('その他企業に伝えたいこと') || '',
-          get('選考メモ') || ''
+          get('応募雇用形態') ? '雇用: ' + get('応募雇用形態') : ''
         ].filter(x => x).join(' / '),
       };
     }
@@ -163,14 +159,14 @@ const SOURCES = {
       // 氏名「福井儀一(ふくいよしかず)」→ 氏名+ふりがな に分離(全角/半角カッコ両対応)
       const rawName = ctx.norm(get('氏名'));
       let name = rawName, kana = '';
-      const m = rawName.match(/^(.+?)\s*[((]([^)())]+)[))]\s*$/);
+      const m = rawName.match(/^(.+?)\s*[(（]([^)）]+)[)）]\s*$/);
       if (m){
         name = m[1].trim();
         kana = m[2].trim();
       }
 
       // 生年月日「1961年03月13日 (65歳)」から日付部分のみ
-      const birthStr = ctx.norm(get('生年月日')).replace(/\s*[((]\d+\s*歳[))]\s*/, '');
+      const birthStr = ctx.norm(get('生年月日')).replace(/\s*[(（]\d+\s*歳[)）]\s*/, '');
       const [by, bm, bd] = ctx.ymdFromBirth(birthStr);
 
       const workplace = ctx.norm(get('勤務先_1'));

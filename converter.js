@@ -60,10 +60,21 @@ function splitBySlash(v){
   return { before: s.slice(0, i).trim(), after: s.slice(i+1).trim() };
 }
 
-// 列名のゆらぎ吸収(末尾スペースなど)
+// 列名のゆらぎ吸収(末尾スペース、全角/半角カッコ、全角/半角コロン)
 function get(row, name){
   if (row[name] != null && row[name] !== '') return row[name];
   if (row[name + ' '] != null && row[name + ' '] !== '') return row[name + ' '];
+  // 全角カッコ ↔ 半角カッコ、全角コロン ↔ 半角コロン の相互変換
+  const variants = [
+    name.replace(/\(/g, '（').replace(/\)/g, '）'),
+    name.replace(/（/g, '(').replace(/）/g, ')'),
+    name.replace(/:/g, '：'),
+    name.replace(/：/g, ':'),
+  ];
+  for (const c of variants){
+    if (row[c] != null && row[c] !== '') return row[c];
+    if (row[c + ' '] != null && row[c + ' '] !== '') return row[c + ' '];
+  }
   return '';
 }
 
