@@ -1,0 +1,456 @@
+/* =====================================================================
+   Import Core - ミントグリーン × 白 テーマ
+   ===================================================================== */
+:root {
+  --mint-50:  #f0faf7;
+  --mint-100: #d8f0e8;
+  --mint-200: #a8dfcf;
+  --mint-300: #6bc7b0;
+  --mint-400: #3aab93;
+  --mint-500: #1d9080;  /* メインカラー */
+  --mint-600: #157669;
+  --mint-700: #0f5b51;
+  --peach:    #f4a886;  /* キャラのほっぺ色をアクセントに */
+  --peach-bg: #fef0e8;
+  --gray-50:  #fafafa;
+  --gray-100: #f4f4f5;
+  --gray-200: #e4e4e7;
+  --gray-300: #d4d4d8;
+  --gray-500: #71717a;
+  --gray-700: #3f3f46;
+  --gray-900: #18181b;
+  --red-500:  #dc2626;
+  --red-50:   #fef2f2;
+  --orange-500: #ea580c;
+  --orange-50:  #fff7ed;
+  --green-500:  #16a34a;
+  --green-50:   #f0fdf4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  margin: 0;
+  background: var(--mint-50);
+  color: var(--gray-900);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* --------- ヘッダー --------- */
+header {
+  background: #fff;
+  border-bottom: 1px solid var(--mint-100);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 3px rgba(29, 144, 128, 0.04);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  color: var(--mint-600);
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+.brand img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+nav { display: flex; gap: 4px; }
+nav a {
+  text-decoration: none;
+  color: var(--gray-500);
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+nav a.active {
+  background: var(--mint-500);
+  color: #fff;
+}
+nav a:hover:not(.active) {
+  background: var(--mint-100);
+  color: var(--mint-700);
+}
+.user-badge {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+.user-badge .uid {
+  font-weight: 700;
+  color: var(--mint-600);
+}
+.user-badge button {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+.user-badge button:hover { background: var(--gray-200); }
+
+/* --------- メインエリア --------- */
+main {
+  max-width: 1100px;
+  margin: 28px auto;
+  padding: 0 20px;
+}
+
+h1 { font-size: 22px; margin: 0 0 10px; color: var(--gray-900); font-weight: 800; }
+h2 { font-size: 17px; margin: 0 0 8px; color: var(--gray-900); font-weight: 800; }
+h3 { font-size: 14px; margin: 18px 0 8px; color: var(--gray-700); font-weight: 700; }
+h4 { font-size: 13px; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--gray-200); color: var(--gray-700); }
+
+.note { color: var(--gray-500); margin-bottom: 14px; font-size: 13px; }
+.muted { color: var(--gray-500); font-size: 13px; }
+.ok { color: var(--green-500); font-weight: 700; }
+.err { color: var(--red-500); font-weight: 700; }
+.dup { color: var(--orange-500); font-weight: 700; }
+
+/* --------- カード --------- */
+.card {
+  background: #fff;
+  border: 1px solid var(--mint-100);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(29, 144, 128, 0.04);
+}
+.card + .card { margin-top: 16px; }
+.card-header-with-koala {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.card-header-with-koala img {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+}
+.card-header-with-koala h1,
+.card-header-with-koala h2 { margin: 0; }
+
+/* --------- フォーム --------- */
+.row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+  align-items: flex-end;
+}
+.row label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--gray-700);
+}
+select, input[type="text"], input[type="password"], input[type="date"], input[type="email"] {
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  background: #fff;
+  min-width: 220px;
+  font-family: inherit;
+  color: var(--gray-900);
+  transition: all 0.15s;
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: var(--mint-400);
+  box-shadow: 0 0 0 3px var(--mint-100);
+}
+select { cursor: pointer; }
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 20px;
+  font-weight: 700;
+  background: var(--mint-500);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+button:hover:not(:disabled) {
+  background: var(--mint-600);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(29, 144, 128, 0.25);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.small { padding: 7px 12px; font-size: 12px; border-radius: 8px; }
+button.danger { background: var(--red-500); }
+button.danger:hover:not(:disabled) {
+  background: #b91c1c;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+button.ghost {
+  background: transparent;
+  color: var(--mint-600);
+  border: 1px solid var(--mint-200);
+}
+button.ghost:hover:not(:disabled) {
+  background: var(--mint-50);
+  box-shadow: none;
+}
+
+.filebtn {
+  display: inline-block;
+  background: var(--gray-700);
+  color: #fff;
+  padding: 11px 20px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.filebtn:hover {
+  background: var(--gray-900);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* --------- ドロップエリア --------- */
+#drop {
+  border: 2px dashed var(--mint-300);
+  border-radius: 14px;
+  background: var(--mint-50);
+  padding: 36px 24px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--mint-700);
+  cursor: pointer;
+  margin-top: 14px;
+  transition: all 0.15s;
+  position: relative;
+}
+#drop:hover { background: var(--mint-100); border-color: var(--mint-400); }
+#drop.drag {
+  background: var(--mint-100);
+  border-color: var(--mint-500);
+  border-style: solid;
+}
+#drop .sub {
+  display: block;
+  margin-top: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+#drop .koala-drop {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 8px;
+  display: block;
+}
+
+/* --------- テーブル --------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  background: #fff;
+  font-size: 13px;
+}
+th, td {
+  border-bottom: 1px solid var(--gray-100);
+  padding: 9px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+th {
+  background: var(--mint-50);
+  color: var(--mint-700);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+table.editable input {
+  width: 100%;
+  min-width: 140px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.scroll { overflow-x: auto; }
+
+/* --------- 結果サマリー --------- */
+.summary {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, var(--mint-50), #fff);
+  border: 1px solid var(--mint-100);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin: 16px 0;
+  align-items: center;
+}
+.summary > .koala-img {
+  width: 70px;
+  height: 70px;
+  flex-shrink: 0;
+}
+.summary > .stats { display: flex; gap: 28px; flex-wrap: wrap; }
+.summary > .stats > div { display: flex; flex-direction: column; gap: 2px; }
+.summary .lbl {
+  font-size: 11px;
+  color: var(--gray-500);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.summary .lbl.ok { color: var(--green-500); }
+.summary .lbl.dup { color: var(--orange-500); }
+.summary .val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--gray-900);
+}
+.summary .val.ok { color: var(--green-500); }
+.summary .val.dup { color: var(--orange-500); }
+
+/* --------- 履歴ブロック --------- */
+.histblock {
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  background: var(--gray-50);
+}
+.histhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* --------- ログインページ --------- */
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, var(--mint-50) 0%, #fff 100%);
+}
+.auth-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 32px;
+  box-shadow: 0 8px 32px rgba(29, 144, 128, 0.12);
+  max-width: 420px;
+  width: 100%;
+  border: 1px solid var(--mint-100);
+}
+.auth-card .auth-koala {
+  display: block;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 16px;
+}
+.auth-card h1 {
+  text-align: center;
+  font-size: 22px;
+  margin-bottom: 6px;
+  color: var(--mint-600);
+}
+.auth-card .auth-sub {
+  text-align: center;
+  color: var(--gray-500);
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+.auth-card .form-row {
+  margin-bottom: 16px;
+}
+.auth-card label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+.auth-card input {
+  width: 100%;
+  font-size: 15px;
+  padding: 12px 14px;
+}
+.auth-card button[type="submit"],
+.auth-card .submit {
+  width: 100%;
+  padding: 13px;
+  font-size: 15px;
+  margin-top: 8px;
+}
+.auth-msg {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 13px;
+  min-height: 20px;
+}
+
+/* --------- ヒーローエリア(空状態) --------- */
+.hero-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--gray-500);
+}
+.hero-empty img {
+  width: 110px;
+  height: 110px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+.hero-empty p { margin: 4px 0; }
+
+/* --------- バッジ --------- */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--mint-100);
+  color: var(--mint-700);
+}
+.badge.warn {
+  background: var(--orange-50);
+  color: var(--orange-500);
+}
+
+/* --------- レスポンシブ --------- */
+@media (max-width: 640px){
+  header { padding: 12px 16px; }
+  .brand { font-size: 16px; }
+  nav a { padding: 6px 10px; font-size: 13px; }
+  main { margin: 16px auto; padding: 0 14px; }
+  .card { padding: 18px; border-radius: 14px; }
+  .row { gap: 10px; }
+  select, input { min-width: 100%; }
+  .summary { padding: 14px; gap: 14px; }
+  .summary > .koala-img { width: 50px; height: 50px; }
+  .summary .val { font-size: 18px; }
+}
