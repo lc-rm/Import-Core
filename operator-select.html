@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Core - 担当者選択</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: linear-gradient(135deg, #fef3e2 0%, #f6e9d0 50%, #f0dfb8 100%);
+    color: #4a3520;
+    min-height: 100vh;
+    padding: 32px 16px;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .header .koala-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .header img {
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 6px rgba(150, 100, 40, 0.15));
+  }
+  .header .koala-fallback {
+    width: 70px; height: 70px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 50px;
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #6b4a20;
+  }
+  .header .subtitle {
+    margin: 6px 0 0;
+    font-size: 14px;
+    color: #8a7560;
+  }
+
+  .top-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+  .logout-link {
+    color: #8a7560;
+    font-size: 12px;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+  .logout-link:hover {
+    background: rgba(255, 255, 255, 0.5);
+    color: #6b4a20;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+
+  .card {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1.5px solid #e8d4b3;
+    border-radius: 16px;
+    padding: 24px 18px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: #c98b3f;
+    box-shadow: 0 8px 20px rgba(201, 139, 63, 0.2);
+  }
+  .card:active { transform: translateY(0); }
+
+  .card.pressed {
+    transform: scale(0.97);
+    background: #fdf6e8;
+  }
+
+  .card-avatar {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fbe6c0, #e8c894);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: #6b4a20;
+    border: 2.5px solid #d4ad6a;
+  }
+  .card-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #4a3520;
+    margin: 0 0 4px;
+  }
+  .card-email {
+    font-size: 11px;
+    color: #8a7560;
+    margin: 0 0 10px;
+    word-break: break-all;
+  }
+  .card-role {
+    display: inline-block;
+    font-size: 10.5px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .card-role.super_admin {
+    background: #fce8d2;
+    color: #a8631e;
+  }
+  .card-role.admin {
+    background: #e3eef8;
+    color: #2d5680;
+  }
+  .card-role.member {
+    background: #ebebe6;
+    color: #5a5448;
+  }
+
+  .empty {
+    background: #fff;
+    border: 1px dashed #d4ad6a;
+    padding: 32px;
+    border-radius: 14px;
+    text-align: center;
+    color: #8a7560;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 40px;
+    color: #8a7560;
+  }
+  .spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e0c89e;
+    border-top-color: #c98b3f;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box {
+    background: #fce8e8;
+    color: #8a2a2a;
+    border: 1px solid #f1b9b9;
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+  .error-box a {
+    color: #8a2a2a;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="top-bar">
+    <a href="#" class="logout-link" onclick="doLogout(); return false;">ログアウト</a>
+  </div>
+
+  <div class="header">
+    <div class="koala-row">
+      <img id="koalaImg" src="assets/koala-happy.png" alt="コアラ" onerror="this.style.display='none'; document.getElementById('koalaFallback').style.display='flex';">
+      <div id="koalaFallback" class="koala-fallback" style="display:none">🐨</div>
+    </div>
+    <h1>担当者を選んでください</h1>
+    <p class="subtitle">取込履歴に「誰が操作したか」が記録されます</p>
+  </div>
+
+  <div id="errorBox" class="error-box" style="display:none"></div>
+
+  <div id="loading" class="loading">
+    <span class="spinner"></span>担当者一覧を読み込み中...
+  </div>
+
+  <div id="grid" class="grid" style="display:none"></div>
+
+  <div id="empty" class="empty" style="display:none">
+    担当者が登録されていません。<br>
+    管理者にユーザー追加を依頼してください。
+  </div>
+</div>
+
+<script src="github-store.js"></script>
+<script>
+  // ============= 起動時:認証チェック → ユーザー一覧取得 =============
+  window.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('importcore.github.pat');
+    if (!token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    try {
+      // 必ず最新を取得(他PCで担当者が追加された可能性があるため)
+      await GitHubStore.authenticate(token);
+      const users = await GitHubStore.loadUserList();
+      renderUsers(users);
+    } catch (e) {
+      handleError(e);
+    }
+  });
+
+  // ============= ユーザー一覧描画 =============
+  function renderUsers(users) {
+    document.getElementById('loading').style.display = 'none';
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty');
+
+    if (!users || users.length === 0) {
+      empty.style.display = 'block';
+      return;
+    }
+
+    // 並び順:絶対管理者 → 管理者 → メンバー、それぞれ追加日順
+    const order = { super_admin: 0, admin: 1, member: 2 };
+    users.sort((a, b) => {
+      const ra = order[a.role] != null ? order[a.role] : 9;
+      const rb = order[b.role] != null ? order[b.role] : 9;
+      if (ra !== rb) return ra - rb;
+      return (a.addedAt || '').localeCompare(b.addedAt || '');
+    });
+
+    grid.innerHTML = '';
+    users.forEach(u => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.email = u.email;
+
+      const initial = (u.displayName || u.email || '?').trim().charAt(0);
+      const roleLabel = u.role === 'super_admin' ? '絶対管理者'
+                       : u.role === 'admin' ? '管理者'
+                       : 'メンバー';
+
+      card.innerHTML = `
+        <div class="card-avatar">${escapeHtml(initial)}</div>
+        <div class="card-name">${escapeHtml(u.displayName || u.email)}</div>
+        <div class="card-email">${escapeHtml(u.email)}</div>
+        <span class="card-role ${u.role}">${roleLabel}</span>
+      `;
+
+      card.addEventListener('click', () => selectOperator(card, u.email));
+      grid.appendChild(card);
+    });
+    grid.style.display = 'grid';
+  }
+
+  // ============= 担当者選択 =============
+  async function selectOperator(card, email) {
+    // 二重クリック防止
+    document.querySelectorAll('.card').forEach(c => c.style.pointerEvents = 'none');
+    card.classList.add('pressed');
+
+    try {
+      await GitHubStore.selectOperator(email);
+      // 少しだけアニメーションを見せて遷移
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 250);
+    } catch (e) {
+      // 解除して再操作可能に
+      document.querySelectorAll('.card').forEach(c => c.style.pointerEvents = 'auto');
+      card.classList.remove('pressed');
+      handleError(e);
+    }
+  }
+
+  // ============= ログアウト =============
+  function doLogout() {
+    if (!confirm('ログアウトしますか?\n(PAT もブラウザから削除されます)')) return;
+    GitHubStore.logout();
+    window.location.href = 'login.html';
+  }
+
+  // ============= エラー処理 =============
+  function handleError(e) {
+    document.getElementById('loading').style.display = 'none';
+    const box = document.getElementById('errorBox');
+    let msg = e.message || 'エラーが発生しました';
+
+    if (msg.includes('UNAUTHORIZED')) {
+      msg = 'PAT が無効または期限切れです。';
+      box.innerHTML = `❌ ${escapeHtml(msg)}<br><a href="login.html" onclick="GitHubStore.logout()">→ ログイン画面へ戻る</a>`;
+    } else if (msg.includes('FORBIDDEN')) {
+      box.innerHTML = `❌ 権限不足です。管理者に PAT の発行設定を確認してください(Contents: Read and write が必要)。`;
+    } else if (msg.includes('NetworkError') || msg.includes('Failed to fetch')) {
+      box.innerHTML = `❌ ネットワークエラー。インターネット接続を確認してください。<br><a href="#" onclick="location.reload(); return false;">→ 再読み込み</a>`;
+    } else {
+      box.textContent = `❌ ${msg}`;
+    }
+    box.style.display = 'block';
+  }
+
+  // ============= ユーティリティ =============
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+</script>
+</body>
+</html>

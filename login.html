@@ -1,66 +1,309 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ログイン - Import Core</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Core - ログイン</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: linear-gradient(135deg, #fef3e2 0%, #f6e9d0 50%, #f0dfb8 100%);
+    color: #4a3520;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .card {
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 20px;
+    padding: 36px 32px 28px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 8px 32px rgba(150, 100, 40, 0.15);
+    border: 1px solid #e8d4b3;
+  }
+
+  .koala-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .koala-wrap img {
+    width: 90px;
+    height: 90px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 8px rgba(150, 100, 40, 0.15));
+    animation: koalaFloat 3s ease-in-out infinite;
+  }
+  @keyframes koalaFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  .koala-fallback {
+    width: 90px; height: 90px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 64px;
+  }
+
+  h1 {
+    text-align: center;
+    margin: 0 0 4px;
+    font-size: 22px;
+    color: #6b4a20;
+    letter-spacing: 0.5px;
+  }
+  .subtitle {
+    text-align: center;
+    margin: 0 0 24px;
+    color: #8a7560;
+    font-size: 12px;
+  }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: #8a6332;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .field input {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid #e0c89e;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fffaf0;
+    color: #4a3520;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field input:focus {
+    outline: none;
+    border-color: #c98b3f;
+    box-shadow: 0 0 0 3px rgba(201, 139, 63, 0.15);
+  }
+
+  button.primary {
+    width: 100%;
+    padding: 13px;
+    background: linear-gradient(135deg, #d4a05a, #c98b3f);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: transform 0.1s, box-shadow 0.2s, opacity 0.2s;
+    box-shadow: 0 3px 10px rgba(201, 139, 63, 0.3);
+    letter-spacing: 0.5px;
+  }
+  button.primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(201, 139, 63, 0.4);
+  }
+  button.primary:active:not(:disabled) { transform: translateY(0); }
+  button.primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .status {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    display: none;
+  }
+  .status.error {
+    background: #fce8e8;
+    color: #8a2a2a;
+    border: 1px solid #f1b9b9;
+    display: block;
+  }
+  .status.info {
+    background: #eef3fa;
+    color: #355484;
+    border: 1px solid #c0d2ec;
+    display: block;
+  }
+  .status.success {
+    background: #e7f5ea;
+    color: #2d6b3f;
+    border: 1px solid #b9dec3;
+    display: block;
+  }
+  .status.warn {
+    background: #fef3e2;
+    color: #8a6332;
+    border: 1px solid #e0c89e;
+    display: block;
+  }
+
+  .footer-note {
+    margin-top: 18px;
+    text-align: center;
+    font-size: 11px;
+    color: #a89478;
+  }
+</style>
 </head>
 <body>
-<div class="auth-wrap">
-  <div class="auth-card">
-    <img src="assets/koala-wave.png" alt="" class="auth-koala" />
-    <h1>ログイン</h1>
-    <p class="auth-sub">Import Core にサインインしてください</p>
 
-    <form id="loginForm">
-      <div class="form-row">
-        <label for="userId">ユーザーID</label>
-        <input type="text" id="userId" autocomplete="username" required autofocus />
-      </div>
-      <div class="form-row">
-        <label for="password">パスワード</label>
-        <input type="password" id="password" autocomplete="current-password" required />
-      </div>
-      <button type="submit" class="submit">ログイン</button>
-    </form>
-    <div id="msg" class="auth-msg muted"></div>
+<div class="card">
+  <div class="koala-wrap">
+    <img id="koalaImg" src="assets/koala-wave.png" alt="コアラ" onerror="this.style.display='none'; document.getElementById('koalaFallback').style.display='flex';">
+    <div id="koalaFallback" class="koala-fallback" style="display:none">🐨</div>
   </div>
+
+  <h1>Import Core</h1>
+  <p class="subtitle">採用コア取込ツール</p>
+
+  <div class="field">
+    <label for="loginId">ID</label>
+    <input type="text" id="loginId" placeholder="ID を入力" autocomplete="username">
+  </div>
+
+  <div class="field">
+    <label for="loginPw">パスワード</label>
+    <input type="password" id="loginPw" placeholder="" autocomplete="current-password">
+  </div>
+
+  <button class="primary" id="loginBtn" onclick="doLogin()">ログイン</button>
+
+  <div id="status" class="status"></div>
+
+  <div class="footer-note">🐨 Link Core - Import Core</div>
 </div>
 
-<script src="auth.js"></script>
+<script src="github-store.js"></script>
 <script>
-const $ = id => document.getElementById(id);
+  // ============================================================
+  // 共有 ID / パスワード(コード固定)
+  // ============================================================
+  const SHARED_LOGIN_ID = 'client-saiyou@link-core.co.jp';
+  const SHARED_LOGIN_PW = 'linkcore2291-26';
 
-// ユーザー未登録なら初回セットアップへ
-if (Auth.loadUsers().length === 0){
-  location.href = 'setup.html';
-}
-// 既にログイン済みなら本画面へ
-if (Auth.isLoggedIn()){
-  location.href = 'index.html';
-}
+  // ============================================================
+  // ログイン処理
+  // ============================================================
+  async function doLogin() {
+    const id = document.getElementById('loginId').value.trim();
+    const pw = document.getElementById('loginPw').value;
+    const btn = document.getElementById('loginBtn');
 
-$('loginForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const userId = $('userId').value.trim();
-  const pw = $('password').value;
-  const msg = $('msg');
-
-  msg.textContent = '認証中...';
-  try {
-    const ok = await Auth.verify(userId, pw);
-    if (!ok){
-      msg.innerHTML = '<span class="err">ID または パスワードが違います</span>';
+    if (!id || !pw) {
+      showStatus('error', 'ID とパスワードを両方入力してください');
       return;
     }
-    Auth.setSession(userId, pw);
-    msg.innerHTML = '<span class="ok">ログイン成功</span>';
-    setTimeout(() => location.href = 'index.html', 300);
-  } catch(err){
-    msg.innerHTML = `<span class="err">${err.message}</span>`;
+
+    if (id !== SHARED_LOGIN_ID || pw !== SHARED_LOGIN_PW) {
+      showStatus('error', '❌ ID またはパスワードが違います');
+      return;
+    }
+
+    // ID/PW OK → 裏で PAT 認証
+    const token = localStorage.getItem('importcore.github.pat');
+    if (!token) {
+      showStatus('warn',
+        'この PC は初期設定が済んでいません。<br>' +
+        '管理者から送られた「初期設定リンク」をクリックしてください。'
+      );
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '認証中...';
+    showStatus('info', 'データに接続しています...');
+
+    try {
+      await GitHubStore.authenticate(token);
+
+      // 担当者が選択済みなら index へ、未選択なら担当者選択へ
+      const operatorEmail = localStorage.getItem('importcore.operator.email');
+      if (operatorEmail) {
+        // ユーザーが users.json にまだ存在するか確認
+        const users = await GitHubStore.loadUserList();
+        const exists = users.find(u => u.email === operatorEmail);
+        if (exists) {
+          showStatus('success', `✅ ${exists.displayName} としてログイン中...`);
+          setTimeout(() => { window.location.href = 'index.html'; }, 400);
+          return;
+        }
+        // 削除済みのユーザー → 担当者選択画面へ
+        localStorage.removeItem('importcore.operator.email');
+      }
+
+      showStatus('success', '✅ 認証成功!担当者選択画面へ移動します...');
+      setTimeout(() => { window.location.href = 'operator-select.html'; }, 400);
+
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'ログイン';
+
+      let msg = e.message || 'エラーが発生しました';
+      if (msg.includes('UNAUTHORIZED')) {
+        msg = 'この PC のログインキーが期限切れまたは無効です。管理者に新しい初期設定リンクを依頼してください。';
+      } else if (msg.includes('FORBIDDEN')) {
+        msg = '権限エラーです。管理者にご確認ください。';
+      } else if (msg.includes('NOT_FOUND')) {
+        msg = 'データに接続できません。管理者にご確認ください。';
+      } else if (/NetworkError|Failed to fetch/.test(msg)) {
+        msg = 'ネットワークエラー。インターネット接続を確認してください。';
+      }
+      showStatus('error', `❌ ${msg}`);
+    }
   }
-});
+
+  function showStatus(type, msg) {
+    const status = document.getElementById('status');
+    status.className = 'status ' + type;
+    status.innerHTML = msg;
+  }
+
+  // ============================================================
+  // 起動時:既にセッション完成済みなら自動遷移
+  // ============================================================
+  window.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('importcore.github.pat');
+    const operator = localStorage.getItem('importcore.operator.email');
+    const stayLogin = sessionStorage.getItem('importcore.force.login');
+
+    if (stayLogin) {
+      // 「ログアウト後すぐの login.html 表示」なので、自動遷移しない
+      sessionStorage.removeItem('importcore.force.login');
+      document.getElementById('loginId').focus();
+      return;
+    }
+
+    if (token && operator) {
+      // 完全ログイン済み → index へ
+      window.location.href = 'index.html';
+      return;
+    }
+    if (token) {
+      // PAT はあるが担当者未選択 → ID/PW 入力後に担当者選択へ
+      document.getElementById('loginId').focus();
+      return;
+    }
+
+    // 何もない初期状態
+    document.getElementById('loginId').focus();
+  });
+
+  // Enter キー対応
+  document.getElementById('loginPw').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('loginId').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('loginPw').focus();
+  });
 </script>
 </body>
 </html>

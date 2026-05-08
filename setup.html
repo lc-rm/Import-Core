@@ -1,82 +1,257 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>初回セットアップ - Import Core</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Core - 初期設定</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: linear-gradient(135deg, #fef3e2 0%, #f6e9d0 50%, #f0dfb8 100%);
+    color: #4a3520;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 36px 32px 28px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 8px 32px rgba(150, 100, 40, 0.15);
+    border: 1px solid #e8d4b3;
+    text-align: center;
+  }
+  .koala {
+    font-size: 60px;
+    margin-bottom: 14px;
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    color: #6b4a20;
+  }
+  .subtitle {
+    margin: 0 0 24px;
+    font-size: 13px;
+    color: #8a7560;
+    line-height: 1.6;
+  }
+  .status {
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .status.success {
+    background: #e7f5ea;
+    color: #2d6b3f;
+    border: 1px solid #b9dec3;
+  }
+  .status.error {
+    background: #fce8e8;
+    color: #8a2a2a;
+    border: 1px solid #f1b9b9;
+  }
+  .status.info {
+    background: #eef3fa;
+    color: #355484;
+    border: 1px solid #c0d2ec;
+  }
+  .info-line {
+    background: #fdf6e8;
+    border: 1px solid #e0c89e;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 13px;
+    color: #6b4a20;
+    text-align: left;
+  }
+  .info-line strong {
+    color: #8a6332;
+    margin-right: 8px;
+  }
+  button.primary {
+    width: 100%;
+    padding: 13px;
+    background: linear-gradient(135deg, #d4a05a, #c98b3f);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 3px 10px rgba(201, 139, 63, 0.3);
+  }
+  button.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(201, 139, 63, 0.4);
+  }
+  button.primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .small-link {
+    display: block;
+    margin-top: 14px;
+    color: #8a7560;
+    font-size: 12px;
+    text-decoration: underline;
+  }
+  .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid #e0c89e;
+    border-top-color: #c98b3f;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </head>
 <body>
-<div class="auth-wrap">
-  <div class="auth-card">
-    <img src="assets/koala-wave.png" alt="" class="auth-koala" />
-    <h1>Import Core へようこそ</h1>
-    <p class="auth-sub">最初の管理ユーザーを作成してください</p>
 
-    <form id="setupForm">
-      <div class="form-row">
-        <label for="userId">ユーザーID</label>
-        <input type="text" id="userId" autocomplete="username" required minlength="3" placeholder="メールアドレス または 任意のID(3文字以上)" />
-      </div>
-      <div class="form-row">
-        <label for="password">パスワード</label>
-        <input type="password" id="password" autocomplete="new-password" required minlength="6" placeholder="6文字以上" />
-      </div>
-      <div class="form-row">
-        <label for="password2">パスワード(確認)</label>
-        <input type="password" id="password2" autocomplete="new-password" required minlength="6" placeholder="もう一度入力" />
-      </div>
-      <button type="submit" class="submit">アカウントを作成</button>
-    </form>
-    <div id="msg" class="auth-msg muted"></div>
+<div class="card">
+  <div class="koala">🐨</div>
+  <h1 id="title">初期設定中...</h1>
+  <p class="subtitle" id="subtitle">少々お待ちください</p>
 
-    <p class="muted" style="margin-top:24px; font-size:12px; line-height:1.6">
-      ⚠️ パスワードは暗号化キーとして使用されます。<br>
-      <b>忘れると保存データが復号できなくなります</b>のでご注意ください。
-    </p>
+  <div id="status" class="status info">
+    <span class="spinner"></span>セットアップを実行中...
   </div>
+
+  <div id="userInfo" style="display:none;">
+    <div class="info-line">
+      <strong>あなた:</strong>
+      <span id="userName">—</span>
+    </div>
+    <div class="info-line">
+      <strong>メール:</strong>
+      <span id="userEmail">—</span>
+    </div>
+  </div>
+
+  <button class="primary" id="continueBtn" onclick="goLogin()" style="display:none;">ログイン画面へ</button>
+  <button class="primary" id="retryBtn" onclick="location.reload()" style="display:none;">再試行</button>
+  <a href="login.html" class="small-link" id="manualLink" style="display:none;">手動でログイン画面に進む</a>
 </div>
 
-<script src="auth.js"></script>
+<script src="github-store.js"></script>
 <script>
-const $ = id => document.getElementById(id);
-
-// 既にユーザーがいる場合はログイン画面へ
-if (Auth.loadUsers().length > 0){
-  location.href = 'login.html';
-}
-
-$('setupForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const userId = $('userId').value.trim();
-  const pw = $('password').value;
-  const pw2 = $('password2').value;
-  const msg = $('msg');
-
-  // 半角英数字、アンダースコア、ハイフン、ドット、@(メールアドレス対応)を許可、3文字以上
-  if (!/^[A-Za-z0-9_.@\-]{3,}$/.test(userId)){
-    msg.innerHTML = '<span class="err">IDは半角英数字、_ - . @ のみ、3文字以上で入力してください</span>';
-    return;
-  }
-  if (pw !== pw2){
-    msg.innerHTML = '<span class="err">パスワード(確認)が一致しません</span>';
-    return;
-  }
-  if (pw.length < 6){
-    msg.innerHTML = '<span class="err">パスワードは6文字以上にしてください</span>';
-    return;
+  function showStatus(type, msg) {
+    const el = document.getElementById('status');
+    el.className = 'status ' + type;
+    el.innerHTML = msg;
   }
 
-  try {
-    msg.textContent = '作成中...';
-    await Auth.addUser(userId, pw, 'admin');
-    Auth.setSession(userId, pw);
-    msg.innerHTML = '<span class="ok">作成完了!画面を移動します...</span>';
-    setTimeout(() => location.href = 'index.html', 600);
-  } catch(err){
-    msg.innerHTML = `<span class="err">${err.message}</span>`;
+  function setTitle(title, subtitle) {
+    document.getElementById('title').textContent = title;
+    document.getElementById('subtitle').textContent = subtitle;
   }
-});
+
+  function goLogin() {
+    window.location.href = 'login.html';
+  }
+
+  function parseHash() {
+    const hash = window.location.hash.replace(/^#/, '');
+    const params = {};
+    hash.split('&').forEach(pair => {
+      const [k, v] = pair.split('=');
+      if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+    });
+    return params;
+  }
+
+  async function runSetup() {
+    const params = parseHash();
+    const token = params.token;
+    const email = params.email;
+
+    if (!token || !email) {
+      setTitle('セットアップ情報が不足', 'リンクが正しく開けませんでした');
+      showStatus('error',
+        '❌ セットアップに必要な情報がリンクに含まれていません。<br>' +
+        '管理者から送られてきた完全なリンクをクリックしてください。'
+      );
+      document.getElementById('manualLink').style.display = 'block';
+      return;
+    }
+
+    // 一時的にトークン保存して認証を試みる
+    try {
+      localStorage.setItem('importcore.github.pat', token);
+
+      // GitHub に認証して users.json と照合
+      await GitHubStore.authenticate(token);
+      const users = await GitHubStore.loadUserList();
+      const user = users.find(u =>
+        (u.email || '').toLowerCase() === email.toLowerCase()
+      );
+
+      if (!user) {
+        // 認証は通ったが users.json に該当ユーザーがいない
+        GitHubStore.logout();
+        setTitle('登録外のユーザー', '管理者にご連絡ください');
+        showStatus('error',
+          `❌ ${email} は担当者リストに登録されていません。<br>` +
+          '管理者に「Import Core に登録してください」とご連絡ください。'
+        );
+        return;
+      }
+
+      // 担当者として登録
+      await GitHubStore.selectOperator(email);
+
+      // メアドも保存(2回目以降の判別用)
+      localStorage.setItem('importcore.operator.email', email);
+
+      // 成功
+      setTitle('初期設定が完了しました!', 'ようこそ Import Core へ');
+      showStatus('success', '✅ セットアップ成功!');
+
+      document.getElementById('userName').textContent = user.displayName;
+      document.getElementById('userEmail').textContent = user.email;
+      document.getElementById('userInfo').style.display = 'block';
+      document.getElementById('continueBtn').style.display = 'block';
+
+    } catch (e) {
+      console.error('Setup error:', e);
+      // 失敗時はトークン削除
+      localStorage.removeItem('importcore.github.pat');
+      localStorage.removeItem('importcore.operator.email');
+
+      setTitle('セットアップに失敗', 'もう一度お試しください');
+
+      let msg = e.message || '不明なエラー';
+      if (msg.includes('UNAUTHORIZED')) {
+        msg = 'リンクのキーが無効です。管理者に新しいリンクを発行してもらってください。';
+      } else if (msg.includes('FORBIDDEN')) {
+        msg = 'リンクのキーに権限がありません。管理者にご確認ください。';
+      } else if (msg.includes('NOT_FOUND')) {
+        msg = 'データが見つかりません。管理者にご確認ください。';
+      } else if (/NetworkError|Failed to fetch/.test(msg)) {
+        msg = 'ネットワークエラー。インターネット接続を確認してください。';
+      }
+      showStatus('error', `❌ ${msg}`);
+      document.getElementById('retryBtn').style.display = 'block';
+      document.getElementById('manualLink').style.display = 'block';
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', runSetup);
 </script>
 </body>
 </html>
