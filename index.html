@@ -16,6 +16,7 @@
   <nav>
     <a href="index.html" class="active">変換</a>
     <a href="settings.html">クライアント・履歴</a>
+    <a href="admin.html" id="navAdmin" style="display:none;">設定</a>
   </nav>
   <div class="user-badge">
     <span>👤 <span class="uid" id="currentUser"></span></span>
@@ -123,6 +124,15 @@ let currentSource = null;
 async function init(){
   $('currentUser').textContent = Auth.getCurrentUserId();
   $('logoutBtn').onclick = () => { Auth.clearSession(); location.href = 'login.html'; };
+
+  // 管理者なら「設定」タブを表示
+  try {
+    await GitHubStore.loadUsers();
+    const opEmail = GitHubStore.getOperatorEmail();
+    if (GitHubStore.canManageUsers(opEmail)) {
+      $('navAdmin').style.display = '';
+    }
+  } catch (e) { /* ユーザーリスト取得失敗してもページ表示は継続 */ }
 
   await populateSources();
   await populateClients();

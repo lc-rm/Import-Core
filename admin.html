@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>設定 - Import Core</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <div class="brand">
+    <img src="assets/koala-pc.png" alt="" />
+    <span>Import Core</span>
+  </div>
+  <nav>
+    <a href="index.html">変換</a>
+    <a href="settings.html">クライアント・履歴</a>
+    <a href="admin.html" class="active">設定</a>
+  </nav>
+  <div class="user-badge">
+    <span>👤 <span class="uid" id="currentUser"></span></span>
+    <button id="logoutBtn" type="button">ログアウト</button>
+  </div>
+</header>
+
+<main>
+  <!-- 権限不足の場合の警告 -->
+  <div class="card" id="noAccess" style="display:none;">
+    <div class="card-header-with-koala">
+      <img src="assets/koala-think.png" alt="" />
+      <div>
+        <h1>アクセス権限がありません</h1>
+        <div class="note">このページは<b>管理者</b>のみが利用できます。担当者管理や初期設定リンクの発行が必要な場合は、管理者にご連絡ください。</div>
+      </div>
+    </div>
+    <div style="margin-top: 16px;">
+      <a href="index.html"><button>変換ページに戻る</button></a>
+    </div>
+  </div>
+
+  <!-- 担当者管理 -->
+  <div class="card" id="opMgmtPanel" style="display:none;">
+    <div class="card-header-with-koala">
+      <img src="assets/koala-thumb.png" alt="" />
+      <div>
+        <h1>担当者管理</h1>
+        <div class="note">Import Core にログインできる担当者を管理します。</div>
+      </div>
+    </div>
+
+    <h3 class="section-h3">新規追加</h3>
+    <div class="row">
+      <label>氏名<input type="text" id="newOpName" placeholder="例:山田 太郎" /></label>
+      <label>メールアドレス<input type="email" id="newOpEmail" placeholder="taro@example.com" /></label>
+      <label>権限
+        <select id="newOpRole">
+          <option value="admin">管理者</option>
+          <option value="member" selected>メンバー</option>
+        </select>
+      </label>
+      <button onclick="addOperator()">担当者を追加</button>
+    </div>
+
+    <h3 class="section-h3" style="margin-top:24px">登録済み担当者</h3>
+    <div id="opList"></div>
+  </div>
+
+  <!-- 初期設定リンク発行 -->
+  <div class="card" id="setupPanel" style="display:none;">
+    <div class="card-header-with-koala">
+      <img src="assets/koala-pc.png" alt="" />
+      <div>
+        <h1>初期設定リンクを発行</h1>
+        <div class="note">
+          担当者の初期設定用 URL を作ります。<b>ChatWork DM などプライベートな経路</b>で送ってください。<br>
+          社員はリンクをクリックするだけで初期設定が完了します。
+        </div>
+      </div>
+    </div>
+
+    <h3 class="section-h3">設定情報の入力</h3>
+    <div class="row">
+      <label style="flex:1; min-width: 280px;">対象担当者
+        <select id="setupTargetEmail">
+          <option value="">担当者を選択...</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <label style="flex:1; min-width: 100%;">この担当者用のログインキー(GitHub PAT)
+        <input type="password" id="setupPat" placeholder="github_pat_xxxxxxxxxxxxxxxxxx..." style="width:100%; font-family: ui-monospace, monospace; font-size: 12px;" />
+      </label>
+    </div>
+    <p class="muted" style="font-size:12px; margin-top:-4px;">
+      GitHub の Settings → Developer settings → Fine-grained tokens で発行(リポジトリ Import-Core-Data 限定 / Contents: Read and write)
+    </p>
+
+    <button onclick="generateSetupUrl()">初期設定リンクを生成</button>
+
+    <div id="setupResult" style="display:none; margin-top:16px;">
+      <h3 class="section-h3">生成されたリンク</h3>
+      <div id="setupUrlBox" style="background: var(--mint-50); border: 1px solid var(--mint-100); border-radius: 10px; padding: 12px 14px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--gray-700); word-break: break-all; line-height: 1.5;"></div>
+      <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="ghost small" onclick="copySetupUrl()">📋 URLだけコピー</button>
+        <button onclick="copySetupMessage()">📋 ChatWorkメッセージごとコピー</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast" style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); padding:10px 18px; border-radius:22px; background:var(--mint-600); color:#fff; font-size:13px; font-weight:500; box-shadow:0 4px 14px rgba(0,0,0,0.15); z-index:9999; display:none;"></div>
+
+<script src="github-store.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+if (!Auth.requireLogin()) throw new Error('login required');
+
+let CACHED_USERS = [];
+
+async function init(){
+  $('currentUser').textContent = Auth.getCurrentUserId();
+  $('logoutBtn').onclick = () => { Auth.clearSession(); location.href = 'login.html'; };
+
+  // 管理者でない場合は権限なし表示
+  await GitHubStore.loadUsers();
+  const opEmail = GitHubStore.getOperatorEmail();
+  if (!GitHubStore.canManageUsers(opEmail)) {
+    $('noAccess').style.display = 'block';
+    return;
+  }
+
+  // 管理者なら全部表示
+  $('opMgmtPanel').style.display = 'block';
+  $('setupPanel').style.display = 'block';
+
+  await renderOperators();
+  populateSetupTargetDropdown();
+}
+
+function toast(msg, type) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.style.background = type === 'error' ? 'var(--red-500)' : 'var(--mint-600)';
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 2400);
+}
+
+// =================== 担当者管理 ===================
+async function renderOperators(){
+  const box = $('opList');
+  try {
+    const users = await GitHubStore.loadUserList();
+    CACHED_USERS = users;
+    if (users.length === 0){
+      box.innerHTML = '<p class="muted">担当者が登録されていません</p>';
+      return;
+    }
+
+    const order = { super_admin: 0, admin: 1, member: 2 };
+    users.sort((a, b) => {
+      const ra = order[a.role] != null ? order[a.role] : 9;
+      const rb = order[b.role] != null ? order[b.role] : 9;
+      if (ra !== rb) return ra - rb;
+      return (a.addedAt || '').localeCompare(b.addedAt || '');
+    });
+
+    const opEmail = GitHubStore.getOperatorEmail();
+    const head = `<tr><th>氏名</th><th>メール</th><th>権限</th><th>登録日</th><th>操作</th></tr>`;
+    const body = users.map(u => {
+      let roleClass = 'role-user';
+      let roleLabel = 'メンバー';
+      if (u.role === 'super_admin') { roleClass = 'role-super'; roleLabel = '絶対管理者'; }
+      else if (u.role === 'admin') { roleClass = 'role-admin'; roleLabel = '管理者'; }
+
+      const addedDate = u.addedAt ? u.addedAt.substring(0, 10) : '—';
+      const isSelf = u.email === opEmail;
+      const isSuper = u.role === 'super_admin';
+      const canEdit = GitHubStore.canEditUser(opEmail, u.email);
+
+      let actions = '';
+      if (isSuper) {
+        actions = '<span class="muted" style="font-size:11px;">🔒 編集不可</span>';
+      } else if (isSelf) {
+        actions = '<span class="muted" style="font-size:11px;">あなた</span>';
+      } else if (canEdit) {
+        actions = `
+          <button class="small" onclick="changeRole('${escapeHtml(u.email)}','${escapeHtml(u.role)}')">権限変更</button>
+          <button class="small danger" onclick="deleteOperator('${escapeHtml(u.email)}','${escapeHtml(u.displayName)}')">削除</button>
+        `;
+      } else {
+        actions = '<span class="muted" style="font-size:11px;">編集不可</span>';
+      }
+
+      return `<tr>
+        <td><b>${escapeHtml(u.displayName)}</b></td>
+        <td style="font-size:12px;color:var(--gray-500);">${escapeHtml(u.email)}</td>
+        <td><span class="${roleClass}">${roleLabel}</span></td>
+        <td style="font-size:12px;color:var(--gray-500);">${escapeHtml(addedDate)}</td>
+        <td>${actions}</td>
+      </tr>`;
+    }).join('');
+
+    box.innerHTML = `<div class="scroll"><table>${head}${body}</table></div>`;
+  } catch (e) {
+    box.innerHTML = `<p class="err">${escapeHtml(e.message)}</p>`;
+  }
+}
+
+async function addOperator() {
+  const name = $('newOpName').value.trim();
+  const email = $('newOpEmail').value.trim();
+  const role = $('newOpRole').value;
+  if (!name || !email) { toast('氏名とメールアドレスを入力してください', 'error'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('メールアドレスの形式が正しくありません', 'error'); return; }
+  try {
+    await GitHubStore.addUser({ email, displayName: name, role });
+    $('newOpName').value = '';
+    $('newOpEmail').value = '';
+    $('newOpRole').value = 'member';
+    toast(`${name} を追加しました`);
+    await renderOperators();
+    populateSetupTargetDropdown();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function changeRole(email, currentRole) {
+  const next = currentRole === 'admin' ? 'member' : 'admin';
+  const nextLabel = next === 'admin' ? '管理者' : 'メンバー';
+  if (!confirm(`${email} を「${nextLabel}」に変更しますか?`)) return;
+  try {
+    await GitHubStore.updateUserRole(email, next);
+    toast('権限を変更しました');
+    await renderOperators();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteOperator(email, name) {
+  if (!confirm(`「${name}」を担当者から削除します。\n\nこの担当者はログインできなくなります。よろしいですか?`)) return;
+  try {
+    await GitHubStore.deleteUser(email);
+    toast(`${name} を削除しました`);
+    await renderOperators();
+    populateSetupTargetDropdown();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// =================== 初期設定リンク発行 ===================
+function populateSetupTargetDropdown() {
+  const sel = $('setupTargetEmail');
+  if (!sel) return;
+  const users = CACHED_USERS || [];
+  sel.innerHTML = '<option value="">担当者を選択...</option>' +
+    users.map(u => `<option value="${escapeHtml(u.email)}">${escapeHtml(u.displayName)} &lt;${escapeHtml(u.email)}&gt;</option>`).join('');
+}
+
+function generateSetupUrl() {
+  const email = $('setupTargetEmail').value;
+  const pat = $('setupPat').value.trim();
+
+  if (!email) { toast('対象担当者を選択してください', 'error'); return; }
+  if (!pat) { toast('ログインキー(PAT)を入力してください', 'error'); return; }
+  if (!pat.startsWith('github_pat_') && !pat.startsWith('ghp_')) {
+    if (!confirm('入力された値は GitHub PAT の形式と異なるようです。それでも続行しますか?')) return;
+  }
+
+  const baseUrl = location.href.replace(/[^/]+$/, '') + 'setup.html';
+  const url = baseUrl +
+    '#token=' + encodeURIComponent(pat) +
+    '&email=' + encodeURIComponent(email);
+
+  $('setupUrlBox').textContent = url;
+  $('setupResult').style.display = 'block';
+
+  window._setupUrl = url;
+  window._setupEmail = email;
+  const user = (CACHED_USERS || []).find(u => u.email === email);
+  window._setupUserName = user ? user.displayName : email;
+}
+
+function copySetupUrl() {
+  if (!window._setupUrl) return;
+  navigator.clipboard.writeText(window._setupUrl).then(() => {
+    toast('URL をコピーしました');
+  });
+}
+
+function copySetupMessage() {
+  if (!window._setupUrl) return;
+  const msg = `お疲れさまです 🐨
+
+Import Core(採用コア取込ツール)の初期設定リンクを送ります。
+下記をクリックしてください:
+
+${window._setupUrl}
+
+クリック後、自動的にログイン画面に進みます。
+2回目以降はブックマークから普通にログインできます。
+
+【共有ID】
+ID: client-saiyou@link-core.co.jp
+PW: linkcore2291-26
+
+何かあれば声かけてください!`;
+  navigator.clipboard.writeText(msg).then(() => {
+    toast('メッセージをコピーしました');
+  });
+}
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+init().catch(e => { console.error(e); alert('エラー: ' + e.message); });
+</script>
+</body>
+</html>
