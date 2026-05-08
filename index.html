@@ -282,7 +282,8 @@ async function refreshHistory(){
     const dlBtn = e.csv
       ? `<button class="small" onclick="redownloadHistory('${cId}','${e.sId}','${e.processedAt}')">📥CSV</button>`
       : `<span class="muted" style="font-size:11px">―</span>`;
-    return `<tr>
+    const delBtn = `<button class="small danger" data-client="${cId}" data-source="${e.sId}" data-processed="${e.processedAt}" data-action="delete-history">削除</button>`;
+    return `<tr data-row-key="${cId}__${e.sId}__${e.processedAt}">
       <td>${i+1}</td>
       <td><b>${escapeHtml(sLabel)}</b></td>
       <td>${dt}</td>
@@ -290,13 +291,50 @@ async function refreshHistory(){
       <td class="ok">${newC}件</td>
       <td class="dup">${dupC}件</td>
       <td>${dlBtn}</td>
+      <td>${delBtn}</td>
     </tr>`;
   }).join('');
   box.innerHTML = `
     <table>
-      <thead><tr><th>#</th><th>媒体</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th></tr></thead>
+      <thead><tr><th>#</th><th>媒体</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th><th>操作</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+
+  // 削除ボタンの処理(楽観的UI更新 + ローディング)
+  box.querySelectorAll('button[data-action="delete-history"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const b = e.currentTarget;
+      const clientId = b.dataset.client;
+      const sId = b.dataset.source;
+      const processed = b.dataset.processed;
+      const tr = b.closest('tr');
+      const sLabel = (SOURCES[sId] && SOURCES[sId].label) || sId;
+      const dt = new Date(processed).toLocaleString('ja-JP');
+      if (!confirm(`以下の履歴を削除します。よろしいですか?\n\n媒体: ${sLabel}\n取込日時: ${dt}\n\n※ 削除すると、この回に取り込んだ応募者の重複チェックが効かなくなります。`)) return;
+
+      // 楽観的UI更新:行をフェードアウト
+      tr.style.transition = 'opacity 0.2s';
+      tr.style.opacity = '0.4';
+      b.disabled = true;
+      b.textContent = '削除中...';
+
+      try {
+        await SecureStore.deleteHistoryEntry(clientId, sId, processed);
+        // 成功:行を実際に削除
+        tr.remove();
+        // 履歴が空になった場合の表示更新
+        if (box.querySelectorAll('tr[data-row-key]').length === 0) {
+          await refreshHistory();
+        }
+      } catch (err) {
+        // 失敗:UIを元に戻す
+        tr.style.opacity = '1';
+        b.disabled = false;
+        b.textContent = '削除';
+        alert('削除に失敗しました: ' + (err.message || err));
+      }
+    });
+  });
 }
 
 async function redownloadHistory(clientId, sourceId, processedAt){

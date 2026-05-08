@@ -111,12 +111,25 @@ async function onAdd(){
     $('addMsg').innerHTML = '<span class="err">同じ名前のクライアントが既に存在します</span>';
     return;
   }
-  await SecureStore.addClient({ name });
-  $('newName').value = '';
-  $('addMsg').innerHTML = '<span class="ok">追加しました</span>';
-  setTimeout(() => $('addMsg').innerHTML = '', 1500);
-  await renderClients();
-  await renderHistoryAll();
+
+  const btn = $('addBtn');
+  btn.disabled = true;
+  btn.textContent = '追加中...';
+  $('addMsg').innerHTML = '<span class="muted">追加中...</span>';
+
+  try {
+    await SecureStore.addClient({ name });
+    $('newName').value = '';
+    $('addMsg').innerHTML = '<span class="ok">追加しました</span>';
+    setTimeout(() => $('addMsg').innerHTML = '', 1500);
+    await renderClients();
+    await renderHistoryAll();
+  } catch (err) {
+    $('addMsg').innerHTML = `<span class="err">追加に失敗しました: ${err.message || err}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'クライアントを追加';
+  }
 }
 
 async function renderClients(){
@@ -176,6 +189,8 @@ async function onClientAction(e){
   const tr = e.target.closest('tr');
   const id = tr.dataset.id;
   const action = e.target.dataset.action;
+  const btn = e.target;
+
   if (action === 'edit'){
     enterEditMode(tr);
   } else if (action === 'cancel'){
@@ -190,16 +205,41 @@ async function onClientAction(e){
       inp.focus(); inp.select();
       return;
     }
-    await SecureStore.updateClient(id, { name: newName });
-    exitEditMode(tr, newName);
-    flash(tr.querySelector('button[data-action="edit"]'), '保存しました');
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+    try {
+      await SecureStore.updateClient(id, { name: newName });
+      exitEditMode(tr, newName);
+      flash(tr.querySelector('button[data-action="edit"]'), '保存しました');
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '保存';
+      alert('保存に失敗しました: ' + (err.message || err));
+    }
   } else if (action === 'delete'){
     const clients = await SecureStore.loadClients();
     const c = clients.find(x => x.id === id);
     if (!confirm(`「${c.name}」を削除します。\n\n関連する取込履歴もすべて削除されます。よろしいですか?`)) return;
-    await SecureStore.deleteClient(id);
-    await renderClients();
-    await renderHistoryAll();
+
+    // 楽観的UI更新:行をフェードアウト
+    tr.style.transition = 'opacity 0.2s';
+    tr.style.opacity = '0.4';
+    btn.disabled = true;
+    btn.textContent = '削除中...';
+
+    try {
+      await SecureStore.deleteClient(id);
+      tr.remove();
+      // 全削除されたら空状態を表示するため再レンダリング
+      const remaining = document.querySelectorAll('#clientList tr[data-id]').length;
+      if (remaining === 0) await renderClients();
+      await renderHistoryAll();
+    } catch (err) {
+      tr.style.opacity = '1';
+      btn.disabled = false;
+      btn.textContent = '削除';
+      alert('削除に失敗しました: ' + (err.message || err));
+    }
   }
 }
 
@@ -246,7 +286,7 @@ async function renderHistoryAll(){
       ? `<button class="small" data-client="${e.cId}" data-source="${e.sId}" data-processed="${e.processedAt}" data-action="download">📥CSV</button>`
       : `<span class="muted" style="font-size:11px">―</span>`;
     const delBtn = `<button class="small danger" data-client="${e.cId}" data-source="${e.sId}" data-processed="${e.processedAt}" data-action="delete">削除</button>`;
-    return `<tr>
+    return `<tr data-row-key="${e.cId}__${e.sId}__${e.processedAt}">
       <td>${i+1}</td>
       <td>${dt}</td>
       <td>${escapeHtml(cName)}</td>
@@ -297,9 +337,11 @@ async function renderHistoryAll(){
 
   box.querySelectorAll('button[data-action="delete"]').forEach(btn => {
     btn.addEventListener('click', async e => {
-      const cId = e.target.dataset.client;
-      const sId = e.target.dataset.source;
-      const processed = e.target.dataset.processed;
+      const b = e.currentTarget;
+      const cId = b.dataset.client;
+      const sId = b.dataset.source;
+      const processed = b.dataset.processed;
+      const tr = b.closest('tr');
       const cName = clientName[cId] || cId;
       const sLabel = (typeof SOURCES !== 'undefined' && SOURCES[sId] && SOURCES[sId].label) || sId;
       const dt = new Date(processed).toLocaleString('ja-JP');
@@ -310,8 +352,25 @@ async function renderHistoryAll(){
         `取込日時: ${dt}\n\n` +
         `※ 削除すると、この回に取り込んだ応募者の重複チェックが効かなくなります。`;
       if (!confirm(msg)) return;
-      await SecureStore.deleteHistoryEntry(cId, sId, processed);
-      await renderHistoryAll();
+
+      // 楽観的UI更新
+      tr.style.transition = 'opacity 0.2s';
+      tr.style.opacity = '0.4';
+      b.disabled = true;
+      b.textContent = '削除中...';
+
+      try {
+        await SecureStore.deleteHistoryEntry(cId, sId, processed);
+        tr.remove();
+        // 全削除されたら空状態を表示するため再レンダリング
+        const remaining = document.querySelectorAll('#historyAll tr[data-row-key]').length;
+        if (remaining === 0) await renderHistoryAll();
+      } catch (err) {
+        tr.style.opacity = '1';
+        b.disabled = false;
+        b.textContent = '削除';
+        alert('削除に失敗しました: ' + (err.message || err));
+      }
     });
   });
 }

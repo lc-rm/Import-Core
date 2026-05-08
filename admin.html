@@ -191,7 +191,7 @@ async function renderOperators(){
         actions = '<span class="muted" style="font-size:11px;">編集不可</span>';
       }
 
-      return `<tr>
+      return `<tr data-email="${escapeHtml(u.email)}">
         <td><b>${escapeHtml(u.displayName)}</b></td>
         <td style="font-size:12px;color:var(--gray-500);">${escapeHtml(u.email)}</td>
         <td><span class="${roleClass}">${roleLabel}</span></td>
@@ -212,6 +212,10 @@ async function addOperator() {
   const role = $('newOpRole').value;
   if (!name || !email) { toast('氏名とメールアドレスを入力してください', 'error'); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('メールアドレスの形式が正しくありません', 'error'); return; }
+
+  const addBtn = document.querySelector('button[onclick="addOperator()"]');
+  if (addBtn) { addBtn.disabled = true; addBtn.textContent = '追加中...'; }
+
   try {
     await GitHubStore.addUser({ email, displayName: name, role });
     $('newOpName').value = '';
@@ -221,27 +225,53 @@ async function addOperator() {
     await renderOperators();
     populateSetupTargetDropdown();
   } catch (e) { toast(e.message, 'error'); }
+  finally {
+    if (addBtn) { addBtn.disabled = false; addBtn.textContent = '担当者を追加'; }
+  }
 }
 
 async function changeRole(email, currentRole) {
   const next = currentRole === 'admin' ? 'member' : 'admin';
   const nextLabel = next === 'admin' ? '管理者' : 'メンバー';
   if (!confirm(`${email} を「${nextLabel}」に変更しますか?`)) return;
+
+  const tr = document.querySelector(`tr[data-email="${email}"]`);
+  const btn = tr ? tr.querySelector('button.small:not(.danger)') : null;
+  if (btn) { btn.disabled = true; btn.textContent = '変更中...'; }
+
   try {
     await GitHubStore.updateUserRole(email, next);
     toast('権限を変更しました');
     await renderOperators();
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '権限変更'; }
+    toast(e.message, 'error');
+  }
 }
 
 async function deleteOperator(email, name) {
   if (!confirm(`「${name}」を担当者から削除します。\n\nこの担当者はログインできなくなります。よろしいですか?`)) return;
+
+  const tr = document.querySelector(`tr[data-email="${email}"]`);
+  const btn = tr ? tr.querySelector('button.danger') : null;
+  if (tr) {
+    tr.style.transition = 'opacity 0.2s';
+    tr.style.opacity = '0.4';
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '削除中...'; }
+
   try {
     await GitHubStore.deleteUser(email);
+    if (tr) tr.remove();
     toast(`${name} を削除しました`);
-    await renderOperators();
     populateSetupTargetDropdown();
-  } catch (e) { toast(e.message, 'error'); }
+    // キャッシュを更新するため再レンダリング(他の行のボタン再バインド)
+    await renderOperators();
+  } catch (e) {
+    if (tr) tr.style.opacity = '1';
+    if (btn) { btn.disabled = false; btn.textContent = '削除'; }
+    toast(e.message, 'error');
+  }
 }
 
 // =================== 初期設定リンク発行 ===================
