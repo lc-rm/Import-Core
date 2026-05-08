@@ -10,8 +10,8 @@ const TEMPLATE_HEADERS = [
   "退職日","書類URL","メモ"
 ];
 
-// 新規取込時の固定ステータス
-const FIXED_STATUS = '未対応';
+// 新規取込時の固定ステータス(全媒体共通で半角ハイフン)
+const FIXED_STATUS = '-';
 
 // ----- 文字列処理ユーティリティ -----
 const norm = v => v == null ? '' : String(v).trim();
@@ -133,10 +133,10 @@ function get(row, name){
   if (row[name + ' '] != null && row[name + ' '] !== '') return row[name + ' '];
   // 全角カッコ ↔ 半角カッコ、全角コロン ↔ 半角コロン の相互変換
   const variants = [
-    name.replace(/\(/g, '（').replace(/\)/g, '）'),
-    name.replace(/（/g, '(').replace(/）/g, ')'),
-    name.replace(/:/g, '：'),
-    name.replace(/：/g, ':'),
+    name.replace(/\(/g, '(').replace(/\)/g, ')'),
+    name.replace(/(/g, '(').replace(/)/g, ')'),
+    name.replace(/:/g, ':'),
+    name.replace(/:/g, ':'),
   ];
   for (const c of variants){
     if (row[c] != null && row[c] !== '') return row[c];
@@ -332,7 +332,7 @@ function convertRows(rows, source, options){
     if (fixedDate) mapped['応募日'] = fixedDate;
     // 媒体名は必ず選択されたソースの mediaName を使う(バグ修正)
     mapped['媒体名'] = mediaName;
-    // 新規取込時のステータスは「未対応」固定
+    // 新規取込時のステータスは半角ハイフン固定(全媒体共通)
     mapped['ステータス'] = FIXED_STATUS;
     return mapped;
   });
