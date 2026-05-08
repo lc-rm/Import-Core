@@ -131,12 +131,21 @@ function splitBySlash(v){
 function get(row, name){
   if (row[name] != null && row[name] !== '') return row[name];
   if (row[name + ' '] != null && row[name + ' '] !== '') return row[name + ' '];
-  // 全角カッコ ↔ 半角カッコ、全角コロン ↔ 半角コロン の相互変換
+  // 全角カッコ ↔ 半角カッコ、全角コロン ↔ 半角コロンの相互変換
+  // 文字コードでマッピング(正規表現の特殊文字問題を回避)
+  const FW_OPEN = String.fromCharCode(0xFF08);   // (全角左カッコ)
+  const FW_CLOSE = String.fromCharCode(0xFF09);  // (全角右カッコ)
+  const FW_COLON = String.fromCharCode(0xFF1A);  // :(全角コロン)
+  const HW_OPEN = '(';
+  const HW_CLOSE = ')';
+  const HW_COLON = ':';
+  const swap = (s, a, b) => s.split(a).join(b);
+
   const variants = [
-    name.replace(/\(/g, '(').replace(/\)/g, ')'),
-    name.replace(/(/g, '(').replace(/)/g, ')'),
-    name.replace(/:/g, ':'),
-    name.replace(/:/g, ':'),
+    swap(swap(name, HW_OPEN, FW_OPEN), HW_CLOSE, FW_CLOSE),    // 半角→全角カッコ
+    swap(swap(name, FW_OPEN, HW_OPEN), FW_CLOSE, HW_CLOSE),    // 全角→半角カッコ
+    swap(name, HW_COLON, FW_COLON),                             // 半角→全角コロン
+    swap(name, FW_COLON, HW_COLON),                             // 全角→半角コロン
   ];
   for (const c of variants){
     if (row[c] != null && row[c] !== '') return row[c];
