@@ -357,23 +357,56 @@
   }
 
   async function addClient(client) {
-    if (!client || !client.id || !client.name) {
-      throw new Error('client.id と client.name は必須です');
+    if (!client || !client.name) {
+      throw new Error('client.name は必須です');
     }
     return updateData(content => {
       content.clients = content.clients || [];
-      const exists = content.clients.find(c => c.id === client.id);
-      if (exists) {
-        throw new Error(`クライアント ${client.id} は既に存在します`);
+      // ID が指定されていなければ自動採番(本番 settings.html 用)
+      let id = client.id;
+      if (!id) {
+        const slug = String(client.name).toLowerCase()
+          .replace(/[^\w]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .substring(0, 30) || 'client';
+        let candidate = `cli_${slug}_${Date.now().toString(36)}`;
+        // 念のため重複回避
+        let counter = 1;
+        while (content.clients.find(c => c.id === candidate)) {
+          candidate = `cli_${slug}_${Date.now().toString(36)}_${counter++}`;
+        }
+        id = candidate;
+      } else {
+        const exists = content.clients.find(c => c.id === client.id);
+        if (exists) {
+          throw new Error(`クライアント ${client.id} は既に存在します`);
+        }
       }
       content.clients.push({
-        id: client.id,
+        id,
         name: client.name,
         createdAt: client.createdAt || new Date().toISOString(),
-        ...client
+        ...client,
+        id  // 確定 ID で上書き
       });
       return content;
     }, `Add client: ${client.name}`);
+  }
+
+  async function updateClient(clientId, updates) {
+    if (!clientId) throw new Error('clientId は必須です');
+    return updateData(content => {
+      content.clients = content.clients || [];
+      const idx = content.clients.findIndex(c => c.id === clientId);
+      if (idx < 0) throw new Error(`クライアント ${clientId} が見つかりません`);
+      content.clients[idx] = {
+        ...content.clients[idx],
+        ...updates,
+        id: clientId,  // ID は変更不可
+        updatedAt: new Date().toISOString()
+      };
+      return content;
+    }, `Update client: ${clientId}`);
   }
 
   async function deleteClient(clientId) {
@@ -439,9 +472,20 @@
   }
 
   /**
-   * 全クライアント横断・全媒体の履歴をフラット配列で返す(時系列降順)
+   * 全クライアント横断・全媒体の履歴を SecureStore 互換のオブジェクト形式で返す
+   * 形式: { clientId: { sourceId: [entry, entry, ...] } }
+   * 各 entry は時系列降順(新しい順)で格納されている。
    */
   async function getAllHistory() {
+    const data = await loadData();
+    return data.history || {};
+  }
+
+  /**
+   * 全クライアント横断・全媒体の履歴をフラット配列で返す(時系列降順)
+   * settings.html の取込履歴一覧表示用。
+   */
+  async function getAllHistoryFlat() {
     const data = await loadData();
     const clients = data.clients || [];
     const history = data.history || {};
@@ -582,10 +626,12 @@
     // SecureStore 互換 API
     loadClients,
     addClient,
+    updateClient,
     deleteClient,
     appendHistory,
     getKnownKeys,
     getAllHistory,
+    getAllHistoryFlat,
     deleteHistoryEntry,
 
     // ユーザー管理
@@ -593,5 +639,73 @@
     addUser,
     updateUserRole,
     deleteUser
+  };
+
+  // SecureStore 互換エイリアス
+  // 本番の index.html / settings.html(既存版)は SecureStore.xxx() を呼んでいるため、
+  // それらを書き換えずに動かすために GitHubStore と同じ実体を SecureStore としてもエクスポートする。
+  global.SecureStore = global.GitHubStore;
+
+  // Auth 互換オブジェクト
+  // 本番の index.html は `Auth.requireLogin()` `Auth.getCurrentUserId()` `Auth.clearSession()` を呼ぶ。
+  // 新システムでは認証チェックは header-bar.js が代行するため、ここでは互換 API だけ提供する。
+  global.Auth = {
+    /**
+     * ログイン要求(互換):
+     * 新システムでは header-bar.js が PAT 未設定なら login.html へ自動遷移する。
+     * よってここでは「PAT が localStorage にあるか」だけを返せば十分。
+     * header-bar.js を読み込む前に呼ばれた場合の保険にもなる。
+     */
+    requireLogin: function () {
+      const token = localStorage.getItem('importcore.github.pat');
+      const operatorEmail = localStorage.getItem('importcore.operator.email');
+      if (!token) {
+        location.href = 'login.html';
+        return false;
+      }
+      if (!operatorEmail) {
+        location.href = 'operator-select.html';
+        return false;
+      }
+      return true;
+    },
+
+    /**
+     * 現在のユーザーID(互換):
+     * 旧 Auth.getCurrentUserId() はメールを返していた。新システムでは表示名を返したいので、
+     * GitHubStore のキャッシュからユーザーを引き出す。未ロード時はメールを返す(後で
+     * header-bar.js のキャッシュロードで更新される)。
+     */
+    getCurrentUserId: function () {
+      const op = global.GitHubStore && global.GitHubStore.getCurrentOperator
+        ? global.GitHubStore.getCurrentOperator()
+        : null;
+      if (op && op.displayName) return op.displayName;
+      return localStorage.getItem('importcore.operator.email') || '';
+    },
+
+    /**
+     * セッション破棄(互換):
+     * 旧 Auth.clearSession() は localStorage の認証情報を消していた。
+     * 新システムでも同等。ただし PAT は残しておく(初期設定をやり直さないため)。
+     * → 担当者メールだけ削除して、login.html での force.login フラグを立てる。
+     */
+    clearSession: function () {
+      localStorage.removeItem('importcore.operator.email');
+      try { sessionStorage.setItem('importcore.force.login', '1'); } catch (e) {}
+    },
+
+    /**
+     * 完全ログアウト(互換):
+     * PAT も含めて全部削除したい場合用。互換性のため別名でも提供。
+     */
+    fullLogout: function () {
+      if (global.GitHubStore && global.GitHubStore.logout) {
+        global.GitHubStore.logout();
+      } else {
+        localStorage.removeItem('importcore.github.pat');
+        localStorage.removeItem('importcore.operator.email');
+      }
+    }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
