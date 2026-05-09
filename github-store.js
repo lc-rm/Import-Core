@@ -47,6 +47,39 @@
     users: null      // { content: <object>, sha: <string> } | null
   };
 
+  // sessionStorage キャッシュキー(タブ遷移後の即時表示用)
+  const SS_CACHE_DATA = 'importcore.ssc.data';
+  const SS_CACHE_USERS = 'importcore.ssc.users';
+  const SS_CACHE_TTL_MS = 60 * 1000; // 60秒
+
+  function ssCacheLoad(key){
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || !obj.ts || !obj.payload) return null;
+      if (Date.now() - obj.ts > SS_CACHE_TTL_MS) {
+        sessionStorage.removeItem(key);
+        return null;
+      }
+      return obj.payload; // { content, sha }
+    } catch(e) { return null; }
+  }
+  function ssCacheSave(key, payload){
+    try {
+      sessionStorage.setItem(key, JSON.stringify({
+        ts: Date.now(),
+        payload: payload
+      }));
+    } catch(e) {}
+  }
+  function ssCacheClear(){
+    try {
+      sessionStorage.removeItem(SS_CACHE_DATA);
+      sessionStorage.removeItem(SS_CACHE_USERS);
+    } catch(e){}
+  }
+
   // ------------------------------------------------------------------
   // 内部ユーティリティ
   // ------------------------------------------------------------------
@@ -186,8 +219,17 @@
    */
   async function loadData(forceRefresh) {
     if (!forceRefresh && cache.data) return cache.data.content;
+    // メモリにない場合、まず sessionStorage を確認
+    if (!forceRefresh) {
+      const ssc = ssCacheLoad(SS_CACHE_DATA);
+      if (ssc) {
+        cache.data = ssc;
+        return ssc.content;
+      }
+    }
     const result = await fetchFile(GITHUB_CONFIG.dataFile);
     cache.data = result;
+    ssCacheSave(SS_CACHE_DATA, result);
     return result.content;
   }
 
@@ -196,8 +238,16 @@
    */
   async function loadUsers(forceRefresh) {
     if (!forceRefresh && cache.users) return cache.users.content;
+    if (!forceRefresh) {
+      const ssc = ssCacheLoad(SS_CACHE_USERS);
+      if (ssc) {
+        cache.users = ssc;
+        return ssc.content;
+      }
+    }
     const result = await fetchFile(GITHUB_CONFIG.usersFile);
     cache.users = result;
+    ssCacheSave(SS_CACHE_USERS, result);
     return result.content;
   }
 
@@ -225,6 +275,7 @@
           commitMessage || 'Update data.json'
         );
         cache.data = { content: newContent, sha };
+        ssCacheSave(SS_CACHE_DATA, cache.data);
         return newContent;
       } catch (e) {
         if (e.message === 'SHA_CONFLICT' && attempts < MAX_ATTEMPTS) {
@@ -258,6 +309,7 @@
           commitMessage || 'Update users.json'
         );
         cache.users = { content: newContent, sha };
+        ssCacheSave(SS_CACHE_USERS, cache.users);
         return newContent;
       } catch (e) {
         if (e.message === 'SHA_CONFLICT' && attempts < MAX_ATTEMPTS) {
@@ -347,6 +399,9 @@
   function logout() {
     clearToken();
     setOperatorEmail(null);
+    cache.data = null;
+    cache.users = null;
+    ssCacheClear();
   }
 
   // --- クライアント管理 -------------------------------------------------

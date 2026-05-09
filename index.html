@@ -108,6 +108,7 @@
 </main>
 
 <script src="github-store.js"></script>
+<script src="ui-helper.js"></script>
 <script src="sources.js"></script>
 <script src="converter.js"></script>
 <script src="assets/indeed_bookmarklet.js"></script>
@@ -312,16 +313,18 @@ async function refreshHistory(){
       const dt = new Date(processed).toLocaleString('ja-JP');
       if (!confirm(`以下の履歴を削除します。よろしいですか?\n\n媒体: ${sLabel}\n取込日時: ${dt}\n\n※ 削除すると、この回に取り込んだ応募者の重複チェックが効かなくなります。`)) return;
 
-      // 楽観的UI更新:行をフェードアウト
+      // 楽観的UI更新:行をフェードアウト + トースト
       tr.style.transition = 'opacity 0.2s';
       tr.style.opacity = '0.4';
       b.disabled = true;
       b.textContent = '削除中...';
+      const toast = LoadingMask.showToast('履歴を削除しています', 'normal');
 
       try {
         await SecureStore.deleteHistoryEntry(clientId, sId, processed);
         // 成功:行を実際に削除
         tr.remove();
+        LoadingMask.showResult('履歴を削除しました', 'ok');
         // 履歴が空になった場合の表示更新
         if (box.querySelectorAll('tr[data-row-key]').length === 0) {
           await refreshHistory();
@@ -331,7 +334,9 @@ async function refreshHistory(){
         tr.style.opacity = '1';
         b.disabled = false;
         b.textContent = '削除';
-        alert('削除に失敗しました: ' + (err.message || err));
+        LoadingMask.showResult('削除に失敗しました', 'error');
+      } finally {
+        toast.hide();
       }
     });
   });
@@ -361,10 +366,14 @@ async function handleFile(file){
   const sId = $('source').value;
   const source = SOURCES[sId];
 
-  $('msg').textContent = '読み込み中...';
+  $('msg').textContent = '';
   $('summary').innerHTML = '';
   $('preview').innerHTML = '';
   $('dupList').innerHTML = '';
+
+  // 取込カード全体にコアラローディングをかける
+  const card = $('drop').closest('.card') || $('drop').parentElement;
+  const lock = LoadingMask.show(card, '応募者を変換しています', `${file.name} を処理中`, 'heavy');
 
   try {
     const rawRows = await readFile(file, source);
@@ -401,6 +410,8 @@ async function handleFile(file){
   } catch (e){
     console.error(e);
     $('msg').innerHTML = `<span class="err">読み込みに失敗しました:${e.message}</span>`;
+  } finally {
+    lock.hide();
   }
 }
 
@@ -474,20 +485,49 @@ async function downloadCsv(){
     for (const k of makeKeys(r)) keys.push(k);
   }
   const totalCount = lastNewRecords.length + lastDuplicates.length;
-  await SecureStore.appendHistory(cId, sId, keys, lastNewRecords.length, {
-    totalCount,
+
+  // ===== 楽観的UI更新:即座に履歴テーブルへ追加表示 =====
+  const optimisticEntry = {
+    sId: sId,
+    processedAt: new Date().toISOString(),
+    operatorEmail: 'me',
+    totalCount: totalCount,
     newCount: lastNewRecords.length,
     dupCount: lastDuplicates.length,
-    csv,
-    filename: fname
-  });
-  // プルダウンの並び順を更新(選択は維持)
-  await populateClients();
-  await populateSources();
-  $('client').value = cId;
-  $('source').value = sId;
-  await refreshHistory();
-  $('msg').innerHTML = `<span class="ok">${lastNewRecords.length}件をCSVに出力し、履歴に記録しました</span>`;
+    csv: csv,
+    filename: fname,
+    _pending: true
+  };
+  prependHistoryRowOptimistic(cId, optimisticEntry);
+
+  // 履歴カードにコアラPCローディング(裏で書き込み中の表示)
+  const historyCard = $('historyCard');
+  const lock = LoadingMask.show(historyCard, '履歴を保存しています', 'GitHubに記録中', 'normal');
+
+  try {
+    await SecureStore.appendHistory(cId, sId, keys, lastNewRecords.length, {
+      totalCount,
+      newCount: lastNewRecords.length,
+      dupCount: lastDuplicates.length,
+      csv,
+      filename: fname
+    });
+    // プルダウンの並び順を更新(選択は維持)
+    await populateClients();
+    await populateSources();
+    $('client').value = cId;
+    $('source').value = sId;
+    await refreshHistory();
+    $('msg').innerHTML = `<span class="ok">${lastNewRecords.length}件をCSVに出力し、履歴に記録しました</span>`;
+    LoadingMask.showResult(`${lastNewRecords.length}件を取り込みました`, 'ok');
+  } catch (err) {
+    $('msg').innerHTML = `<span class="err">履歴の保存に失敗しました: ${err.message || err}</span>`;
+    LoadingMask.showResult('履歴の保存に失敗しました', 'error');
+    // 楽観的に追加した行を消す
+    await refreshHistory();
+  } finally {
+    lock.hide();
+  }
 
   // Indeed取込モードの場合、出力後にキューをクリア
   if (sId === 'indeed' && indeedQueue.length > 0){
@@ -495,6 +535,46 @@ async function downloadCsv(){
     renderIndeedQueue();
     refreshIndeedSummary();
   }
+}
+
+/**
+ * 楽観的UI更新:履歴テーブル先頭に行を即追加
+ */
+function prependHistoryRowOptimistic(cId, entry){
+  const box = $('historyList');
+  if (!box) return;
+  const sLabel = (SOURCES[entry.sId] && SOURCES[entry.sId].label) || entry.sId;
+  const dt = new Date(entry.processedAt).toLocaleString('ja-JP');
+
+  // tbodyを探してその先頭にインサート
+  let tbody = box.querySelector('tbody');
+  if (!tbody) {
+    // 履歴がまだ無い場合、テーブルを作る
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>#</th><th>媒体</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th><th>操作</th></tr></thead>
+        <tbody></tbody>
+      </table>`;
+    tbody = box.querySelector('tbody');
+  }
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>1</td>
+    <td><b>${escapeHtml(sLabel)}</b></td>
+    <td>${dt}</td>
+    <td>${entry.totalCount}件</td>
+    <td class="ok">${entry.newCount}件</td>
+    <td class="dup">${entry.dupCount}件</td>
+    <td><span class="muted" style="font-size:11px">―</span></td>
+    <td><span class="muted" style="font-size:11px">保存中...</span></td>
+  `;
+  tr.style.background = '#fef9c3'; // 保存中ハイライト
+  tbody.insertBefore(tr, tbody.firstChild);
+
+  // 既存行の番号を再計算
+  Array.from(tbody.querySelectorAll('tr')).forEach((r, i) => {
+    if (r.firstElementChild) r.firstElementChild.textContent = i + 1;
+  });
 }
 
 // =====================================================================

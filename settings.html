@@ -59,6 +59,7 @@
 </main>
 
 <script src="github-store.js"></script>
+<script src="ui-helper.js"></script>
 <script src="sources.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -112,24 +113,63 @@ async function onAdd(){
     return;
   }
 
+  // 楽観的UI更新:即座にリストへ仮追加
+  const optimisticId = 'tmp-' + Date.now();
+  prependClientRowOptimistic(optimisticId, name);
+
   const btn = $('addBtn');
   btn.disabled = true;
-  btn.textContent = '追加中...';
-  $('addMsg').innerHTML = '<span class="muted">追加中...</span>';
+  $('newName').value = '';
+  $('addMsg').innerHTML = '';
+
+  // クライアントカードにコアラローディング
+  const card = $('clientList').closest('.card') || $('clientList').parentElement;
+  const lock = LoadingMask.show(card, '追加しています', `${name} を登録中`, 'normal');
 
   try {
     await SecureStore.addClient({ name });
-    $('newName').value = '';
-    $('addMsg').innerHTML = '<span class="ok">追加しました</span>';
-    setTimeout(() => $('addMsg').innerHTML = '', 1500);
+    LoadingMask.showResult(`${name} を追加しました`, 'ok');
     await renderClients();
     await renderHistoryAll();
   } catch (err) {
+    // 失敗:仮の行を削除
+    const tr = document.querySelector(`tr[data-id="${optimisticId}"]`);
+    if (tr) tr.remove();
     $('addMsg').innerHTML = `<span class="err">追加に失敗しました: ${err.message || err}</span>`;
+    LoadingMask.showResult('追加に失敗しました', 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'クライアントを追加';
+    lock.hide();
   }
+}
+
+/**
+ * 楽観的UI更新:クライアント追加時に即座にリストへ仮追加
+ */
+function prependClientRowOptimistic(tmpId, name){
+  const box = $('clientList');
+  if (!box) return;
+  // hero-empty(空状態)を消す
+  const empty = box.querySelector('.hero-empty');
+  if (empty) {
+    box.innerHTML = `
+      <div class="scroll">
+        <table>
+          <thead><tr><th>名前</th><th>操作</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>`;
+  }
+  let tbody = box.querySelector('tbody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.id = tmpId;
+  tr.innerHTML = `
+    <td><b>${escapeHtml(name)}</b></td>
+    <td><span class="muted" style="font-size:11px">追加中...</span></td>
+  `;
+  tr.style.background = '#fef9c3';
+  tbody.appendChild(tr);
 }
 
 async function renderClients(){
@@ -221,15 +261,17 @@ async function onClientAction(e){
     const c = clients.find(x => x.id === id);
     if (!confirm(`「${c.name}」を削除します。\n\n関連する取込履歴もすべて削除されます。よろしいですか?`)) return;
 
-    // 楽観的UI更新:行をフェードアウト
+    // 楽観的UI更新:行をフェードアウト + トースト
     tr.style.transition = 'opacity 0.2s';
     tr.style.opacity = '0.4';
     btn.disabled = true;
     btn.textContent = '削除中...';
+    const toast = LoadingMask.showToast(`${c.name} を削除しています`, 'normal');
 
     try {
       await SecureStore.deleteClient(id);
       tr.remove();
+      LoadingMask.showResult(`${c.name} を削除しました`, 'ok');
       // 全削除されたら空状態を表示するため再レンダリング
       const remaining = document.querySelectorAll('#clientList tr[data-id]').length;
       if (remaining === 0) await renderClients();
@@ -238,7 +280,9 @@ async function onClientAction(e){
       tr.style.opacity = '1';
       btn.disabled = false;
       btn.textContent = '削除';
-      alert('削除に失敗しました: ' + (err.message || err));
+      LoadingMask.showResult('削除に失敗しました', 'error');
+    } finally {
+      toast.hide();
     }
   }
 }
@@ -353,15 +397,17 @@ async function renderHistoryAll(){
         `※ 削除すると、この回に取り込んだ応募者の重複チェックが効かなくなります。`;
       if (!confirm(msg)) return;
 
-      // 楽観的UI更新
+      // 楽観的UI更新 + トースト
       tr.style.transition = 'opacity 0.2s';
       tr.style.opacity = '0.4';
       b.disabled = true;
       b.textContent = '削除中...';
+      const toast = LoadingMask.showToast('履歴を削除しています', 'normal');
 
       try {
         await SecureStore.deleteHistoryEntry(cId, sId, processed);
         tr.remove();
+        LoadingMask.showResult('履歴を削除しました', 'ok');
         // 全削除されたら空状態を表示するため再レンダリング
         const remaining = document.querySelectorAll('#historyAll tr[data-row-key]').length;
         if (remaining === 0) await renderHistoryAll();
@@ -369,7 +415,9 @@ async function renderHistoryAll(){
         tr.style.opacity = '1';
         b.disabled = false;
         b.textContent = '削除';
-        alert('削除に失敗しました: ' + (err.message || err));
+        LoadingMask.showResult('削除に失敗しました', 'error');
+      } finally {
+        toast.hide();
       }
     });
   });
