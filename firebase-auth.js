@@ -87,6 +87,23 @@ onAuthStateChanged(auth, (user) => {
   // 担当者メアドを localStorage にも保存(github-store.js が参照する)
   localStorage.setItem('importcore.operator.email', user.email);
 
+  // ヘッダーのアバター画像とユーザー名を自動でセット
+  // (各ページで個別にコードを書かなくてもOK)
+  try {
+    const avatarEl = document.getElementById('userAvatar');
+    const fallbackEl = document.getElementById('userAvatarFallback');
+    if (avatarEl && user.photoURL) {
+      avatarEl.src = user.photoURL;
+      avatarEl.style.display = 'inline-block';
+      if (fallbackEl) fallbackEl.style.display = 'none';
+      // 画像読み込み失敗時はフォールバック復活
+      avatarEl.onerror = () => {
+        avatarEl.style.display = 'none';
+        if (fallbackEl) fallbackEl.style.display = 'inline-block';
+      };
+    }
+  } catch (e) { /* ignore */ }
+
   // ユーザー情報が取得できたことを他のスクリプトに知らせる
   window.dispatchEvent(new CustomEvent('user-ready', { detail: window.currentUser }));
 });
