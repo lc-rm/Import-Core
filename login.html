@@ -13,32 +13,38 @@
       margin-top: 16px;
     }
     .google-btn {
-      background: #fff;
-      color: #1F2937;
-      padding: 12px 24px;
-      border-radius: 999px;
-      font-weight: 700;
-      font-size: 14px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      border: 2px solid var(--mint-200, #a7f3d0);
-      cursor: pointer;
-      transition: all 0.2s;
-      font-family: inherit;
+      background: #fff !important;
+      color: #1F2937 !important;
+      padding: 12px 24px !important;
+      border-radius: 999px !important;
+      font-weight: 700 !important;
+      font-size: 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 10px !important;
+      border: 2px solid var(--mint-200, #a7f3d0) !important;
+      cursor: pointer !important;
+      transition: all 0.2s !important;
+      font-family: inherit !important;
+      width: auto !important;
+      height: auto !important;
+      line-height: 1 !important;
     }
     .google-btn:hover {
       transform: scale(1.02);
-      border-color: var(--mint-500, #10b981);
+      border-color: var(--mint-500, #10b981) !important;
     }
     .google-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
+      opacity: 0.6 !important;
+      cursor: not-allowed !important;
     }
     .google-btn img {
-      width: 18px;
-      height: 18px;
+      width: 18px !important;
+      height: 18px !important;
+      max-width: 18px !important;
+      max-height: 18px !important;
+      flex-shrink: 0;
     }
     .hint {
       font-size: 11px;
@@ -46,12 +52,14 @@
       margin-top: 16px;
     }
     .loading {
+    .loading {
       color: var(--mint-600, #059669);
       font-size: 13px;
       margin-top: 12px;
-      display: none;
+      display: none !important;
+      text-align: center;
     }
-    .loading.show { display: block; }
+    .loading.show { display: block !important; }
   </style>
 </head>
 <body>
