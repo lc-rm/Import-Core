@@ -6,13 +6,12 @@
   <title>Import Core - ログイン</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    .google-btn {
     .google-btn-wrap {
       display: flex;
       justify-content: center;
       margin-top: 16px;
     }
-    .google-btn {
+    button.google-btn {
       background: #fff;
       color: #1F2937;
       padding: 12px 24px;
@@ -23,36 +22,41 @@
       align-items: center;
       justify-content: center;
       gap: 10px;
-      border: 2px solid var(--mint-200, #a7f3d0);
+      border: 2px solid #a7f3d0;
       cursor: pointer;
       transition: all 0.2s;
       font-family: inherit;
       width: auto;
+      height: auto;
       line-height: 1;
+      box-shadow: none;
+      text-shadow: none;
     }
-    .google-btn:hover {
+    button.google-btn:hover {
       transform: scale(1.02);
-      border-color: var(--mint-500, #10b981);
+      border-color: #10b981;
+      background: #fff;
+      color: #1F2937;
     }
-    .google-btn:disabled {
+    button.google-btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
-    .google-btn img {
+    button.google-btn img {
       width: 18px;
       height: 18px;
       max-width: 18px;
       max-height: 18px;
       flex-shrink: 0;
+      display: inline-block;
     }
     .hint {
       font-size: 11px;
-      color: var(--gray-400, #9ca3af);
+      color: #9ca3af;
       margin-top: 16px;
     }
-    .loading {
     .ic-loading {
-      color: var(--mint-600, #059669);
+      color: #059669;
       font-size: 13px;
       margin-top: 12px;
       display: none;
