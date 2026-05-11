@@ -9,7 +9,9 @@
     .google-btn-wrap {
       display: flex;
       justify-content: center;
+      align-items: center;
       margin-top: 16px;
+      width: 100%;
     }
     button.google-btn {
       background: #fff;
@@ -22,21 +24,21 @@
       align-items: center;
       justify-content: center;
       gap: 10px;
-      border: 2px solid #a7f3d0;
+      border: none;
       cursor: pointer;
       transition: all 0.2s;
       font-family: inherit;
       width: auto;
       height: auto;
       line-height: 1;
-      box-shadow: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
       text-shadow: none;
     }
     button.google-btn:hover {
       transform: scale(1.02);
-      border-color: #10b981;
       background: #fff;
       color: #1F2937;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06);
     }
     button.google-btn:disabled {
       opacity: 0.6;
@@ -73,8 +75,8 @@
     <h1>Import Core</h1>
     <p class="auth-sub">採用コア取込ツール<br>Googleアカウントでログインしてください</p>
 
-    <div class="google-btn-wrap">
-      <button class="google-btn" id="btnLogin" style="background:#fff !important;color:#1F2937 !important;padding:12px 24px !important;border-radius:999px !important;font-weight:700 !important;font-size:14px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;gap:10px !important;border:2px solid #a7f3d0 !important;cursor:pointer !important;width:auto !important;height:auto !important;line-height:1 !important;box-shadow:none !important;">
+    <div class="google-btn-wrap" style="display:flex !important;justify-content:center !important;align-items:center !important;width:100% !important;text-align:center !important;margin-top:16px !important;">
+      <button class="google-btn" id="btnLogin" style="background:#fff !important;color:#1F2937 !important;padding:12px 24px !important;border-radius:999px !important;font-weight:700 !important;font-size:14px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;gap:10px !important;border:none !important;cursor:pointer !important;width:auto !important;height:auto !important;line-height:1 !important;box-shadow:0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04) !important;">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style="width:18px !important;height:18px !important;max-width:18px !important;max-height:18px !important;flex-shrink:0;display:inline-block !important;" />
         <span style="color:#1F2937 !important;">Googleでログイン</span>
       </button>
