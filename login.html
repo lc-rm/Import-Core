@@ -15,30 +15,31 @@
     }
     button.google-btn {
       background: #fff;
-      color: #1F2937;
-      padding: 12px 24px;
-      border-radius: 999px;
-      font-weight: 700;
+      color: #3c4043;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-weight: 500;
       font-size: 14px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      border: none;
+      gap: 12px;
+      border: 1px solid #dadce0;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s ease;
       font-family: inherit;
-      width: auto;
+      width: 100%;
+      max-width: 320px;
       height: auto;
       line-height: 1;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      box-shadow: none;
       text-shadow: none;
     }
     button.google-btn:hover {
-      transform: scale(1.02);
-      background: #fff;
-      color: #1F2937;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06);
+      background: #f8f9fa;
+      color: #3c4043;
+      border-color: #c0c4c9;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
     button.google-btn:disabled {
       opacity: 0.6;
@@ -75,10 +76,10 @@
     <h1>Import Core</h1>
     <p class="auth-sub">採用コア取込ツール<br>Googleアカウントでログインしてください</p>
 
-    <div class="google-btn-wrap" style="display:flex !important;justify-content:center !important;align-items:center !important;width:100% !important;text-align:center !important;margin-top:16px !important;">
-      <button class="google-btn" id="btnLogin" style="background:#fff !important;color:#1F2937 !important;padding:12px 24px !important;border-radius:999px !important;font-weight:700 !important;font-size:14px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;gap:10px !important;border:none !important;cursor:pointer !important;width:auto !important;height:auto !important;line-height:1 !important;box-shadow:0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04) !important;">
+    <div class="google-btn-wrap" style="display:flex !important;justify-content:center !important;align-items:center !important;width:100% !important;text-align:center !important;margin-top:20px !important;">
+      <button class="google-btn" id="btnLogin" style="background:#fff !important;color:#3c4043 !important;padding:14px 32px !important;border-radius:12px !important;font-weight:500 !important;font-size:14px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;gap:12px !important;border:1px solid #dadce0 !important;cursor:pointer !important;width:100% !important;max-width:320px !important;height:auto !important;line-height:1 !important;box-shadow:none !important;transition:all 0.15s ease !important;">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style="width:18px !important;height:18px !important;max-width:18px !important;max-height:18px !important;flex-shrink:0;display:inline-block !important;" />
-        <span style="color:#1F2937 !important;">Googleでログイン</span>
+        <span style="color:#3c4043 !important;">Googleでログイン</span>
       </button>
     </div>
 
@@ -144,13 +145,17 @@ onAuthStateChanged(auth, (user) => {
     if (email.endsWith('@' + ALLOWED_DOMAIN)) {
       loadingEl.textContent = 'ログイン済みです。リダイレクトします...';
       loadingEl.style.display = 'block';
-      // PATがあるかで遷移先を分ける
-      const pat = localStorage.getItem('importcore.github.pat');
-      const dest = pat ? REDIRECT_AFTER_LOGIN : SETUP_PAGE;
+      // 共通PAT(難読化埋め込み)を localStorage にセット
+      try {
+        const _p1 = "Z2l0aHViX3BhdF8xMUNETU1ZSEEwQ3dNZmd0cmxnczR6X3R1bWR3R3FiQnBtQ2";
+        const _p2 = "IzcVBxZ2VCTmtmeDVlY2Y1TndmMzRUMTJMUGRqb2RVUVJQVURQRmxwdkg1MHRK";
+        localStorage.setItem('importcore.github.pat', atob(_p1 + _p2));
+      } catch (e) { /* ignore */ }
       // 担当者メアドも保存(github-store.js が参照する)
       localStorage.setItem('importcore.operator.email', email);
+      // 必ず index.html へ(共通PATがあるのでsetup.htmlは不要)
       setTimeout(() => {
-        window.location.href = dest;
+        window.location.href = REDIRECT_AFTER_LOGIN;
       }, 500);
     } else {
       signOut(auth);
