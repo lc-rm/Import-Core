@@ -150,11 +150,19 @@
   }
 
   // コアラ画像を選ぶ(操作の重さで使い分け)
+  // ※ ファイル名と実際の画像の中身が逆転している部分があるので注意
+  //    koala-happy.png = PC持ってるコアラ ← 「お仕事中」感
+  //    koala-pc.png    = サムズアップコアラ ← 「OK・軽い」感
+  //    koala-think.png = ?マーク考えてるコアラ ← 「困惑」感
+  //    koala-thumb.png = キラキラ両手広げコアラ ← 「お祝い・成功」感
+  //    koala-wave.png  = 手振りコアラ ← 「歓迎」感
   function pickKoala(weight){
-    // weight: 'heavy' (取込みなど) | 'normal' (削除/追加) | 'light'
-    if (weight === 'heavy') return 'assets/koala-pc.png';
-    if (weight === 'light') return 'assets/koala-thumb.png';
-    return 'assets/koala-pc.png'; // デフォルト
+    // 'heavy' = CSV取込など重い処理 → PC持ち
+    if (weight === 'heavy') return 'assets/koala-happy.png';
+    // 'light' = 軽い処理(削除・追加) → サムズアップ
+    if (weight === 'light') return 'assets/koala-pc.png';
+    // 'normal' (デフォルト) → PC持ち
+    return 'assets/koala-happy.png';
   }
 
   /**
@@ -269,10 +277,16 @@
     const el = document.createElement('div');
     el.className = 'ic-toast';
     el.style.borderColor = type === 'error' ? '#fca5a5' : '#a7f3d0';
-    const icon = type === 'error' ? '⚠️' : '✓';
     const color = type === 'error' ? '#b91c1c' : '#047857';
+    // コアラ画像で結果表現:成功=キラキラ、エラー=考えてる
+    const koalaSrc = type === 'error'
+      ? 'assets/koala-think.png'
+      : 'assets/koala-thumb.png';
+    const fallback = type === 'error' ? '🐨' : '✨';
     el.innerHTML = `
-      <div style="font-size:18px;color:${color};font-weight:700;width:24px;text-align:center">${icon}</div>
+      <div class="ic-mask-koala">
+        <img src="${koalaSrc}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${fallback}';this.parentNode.style.fontSize='14px'">
+      </div>
       <div class="ic-toast-text" style="color:${color}">${escapeHtml(text)}</div>
     `;
     document.body.appendChild(el);
