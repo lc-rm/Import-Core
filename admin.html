@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>設定 - Import Core</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Firebase 認証ガード -->
+  <script type="module" src="firebase-auth.js"></script>
 </head>
 <body>
 <header>
@@ -70,10 +72,10 @@
     <div class="card-header-with-koala">
       <img src="assets/koala-pc.png" alt="" />
       <div>
-        <h1>初期設定リンクを発行</h1>
+        <h1>担当者の初期設定リンクを発行</h1>
         <div class="note">
-          担当者の初期設定用 URL を作ります。<b>ChatWork DM などプライベートな経路</b>で送ってください。<br>
-          社員はリンクをクリックするだけで初期設定が完了します。
+          担当者がまだ Import Core にアクセスできない場合、ここで <b>ログインキー(PAT)</b>を含む初期設定リンクを発行できます。<br>
+          <b>ChatWork DM など担当者本人だけが見られる経路</b>で送ってください。
         </div>
       </div>
     </div>
@@ -98,10 +100,17 @@
     <button onclick="generateSetupUrl()">初期設定リンクを生成</button>
 
     <div id="setupResult" style="display:none; margin-top:16px;">
-      <h3 class="section-h3">生成されたリンク</h3>
+      <h3 class="section-h3">配布方法</h3>
+      <div style="background: var(--mint-50); border-left: 3px solid var(--mint-500); padding: 12px 14px; font-size: 13px; line-height: 1.7; margin-bottom: 12px;">
+        <b>📝 担当者への案内メッセージ(下のボタンでコピー):</b><br>
+        1. Google アカウント(@link-core.co.jp)で <a href="https://lc-rm.github.io/Import-Core/" target="_blank">Import Core</a> にログイン<br>
+        2. 初回のみ「初期設定」画面で下記のログインキーを貼り付け<br>
+        3. 設定完了!次回からは Google ログインだけで OK
+      </div>
+      <h3 class="section-h3">ログインキー(PAT)</h3>
       <div id="setupUrlBox" style="background: var(--mint-50); border: 1px solid var(--mint-100); border-radius: 10px; padding: 12px 14px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--gray-700); word-break: break-all; line-height: 1.5;"></div>
       <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-        <button class="ghost small" onclick="copySetupUrl()">📋 URLだけコピー</button>
+        <button class="ghost small" onclick="copySetupUrl()">📋 PATだけコピー</button>
         <button onclick="copySetupMessage()">📋 ChatWorkメッセージごとコピー</button>
       </div>
     </div>
@@ -120,7 +129,14 @@ let CACHED_USERS = [];
 
 async function init(){
   $('currentUser').textContent = Auth.getCurrentUserId();
-  $('logoutBtn').onclick = () => { Auth.clearSession(); location.href = 'login.html'; };
+  $('logoutBtn').onclick = () => {
+    if (typeof window.logout === 'function') {
+      window.logout();
+    } else {
+      Auth.clearSession();
+      location.href = 'login.html';
+    }
+  };
 
   // 管理者でない場合は権限なし表示
   await GitHubStore.loadUsers();
@@ -303,42 +319,40 @@ function generateSetupUrl() {
     if (!confirm('入力された値は GitHub PAT の形式と異なるようです。それでも続行しますか?')) return;
   }
 
-  const baseUrl = location.href.replace(/[^/]+$/, '') + 'setup.html';
-  const url = baseUrl +
-    '#token=' + encodeURIComponent(pat) +
-    '&email=' + encodeURIComponent(email);
-
-  $('setupUrlBox').textContent = url;
+  // Firebase認証移行後はPATを直接表示(リンク方式廃止)
+  $('setupUrlBox').textContent = pat;
   $('setupResult').style.display = 'block';
 
-  window._setupUrl = url;
+  window._setupPat = pat;
   window._setupEmail = email;
   const user = (CACHED_USERS || []).find(u => u.email === email);
   window._setupUserName = user ? user.displayName : email;
 }
 
 function copySetupUrl() {
-  if (!window._setupUrl) return;
-  navigator.clipboard.writeText(window._setupUrl).then(() => {
-    toast('URL をコピーしました');
+  if (!window._setupPat) return;
+  navigator.clipboard.writeText(window._setupPat).then(() => {
+    toast('PAT をコピーしました');
   });
 }
 
 function copySetupMessage() {
-  if (!window._setupUrl) return;
+  if (!window._setupPat) return;
   const msg = `お疲れさまです 🐨
 
-Import Core(採用コア取込ツール)の初期設定リンクを送ります。
-下記をクリックしてください:
+Import Core(採用コア取込ツール)のセットアップ手順です。
 
-${window._setupUrl}
+【ステップ1】下記のURLにアクセス
+https://lc-rm.github.io/Import-Core/
 
-クリック後、自動的にログイン画面に進みます。
-2回目以降はブックマークから普通にログインできます。
+【ステップ2】「Googleでログイン」ボタンをクリック
+ご自身の @link-core.co.jp のGoogleアカウントを選択してください。
 
-【共有ID】
-ID: client-saiyou@link-core.co.jp
-PW: linkcore2291-26
+【ステップ3】「初期設定」画面で下記のログインキーを貼り付け
+${window._setupPat}
+
+これで完了です!
+次回からは Google ログインだけでアクセスできます ✨
 
 何かあれば声かけてください!`;
   navigator.clipboard.writeText(msg).then(() => {

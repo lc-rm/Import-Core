@@ -3,128 +3,148 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>初期設定 - Import Core</title>
+  <title>Import Core - 初期設定</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .setup-form input[type="password"],
+    .setup-form input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--mint-200, #a7f3d0);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: monospace;
+      box-sizing: border-box;
+    }
+    .setup-form label {
+      display: block;
+      margin: 14px 0 6px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .setup-form button {
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: var(--mint-600, #059669);
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .setup-form button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .hint-box {
+      background: var(--mint-50, #ecfdf5);
+      border-left: 3px solid var(--mint-500, #10b981);
+      padding: 10px 14px;
+      margin: 12px 0;
+      font-size: 12px;
+      text-align: left;
+      line-height: 1.6;
+      color: var(--gray-700, #374151);
+    }
+  </style>
 </head>
 <body>
 
 <div class="auth-wrap">
   <div class="auth-card">
     <img src="assets/koala-wave.png" alt="" class="auth-koala" />
-    <h1 id="title">初期設定中...</h1>
-    <p class="auth-sub" id="subtitle">少々お待ちください</p>
+    <h1>初期設定</h1>
+    <p class="auth-sub">ようこそ、<b id="userName">...</b> さん!<br>初回のみ、データアクセス用のキーを設定します</p>
 
-    <div id="status" class="auth-msg muted">セットアップを実行中...</div>
-
-    <div id="userInfo" style="display:none; background: var(--mint-50); border: 1px solid var(--mint-100); border-radius: 10px; padding: 14px 16px; margin: 16px 0; font-size: 13px;">
-      <div style="margin-bottom: 6px;"><strong style="color: var(--mint-700);">あなた:</strong> <span id="userName">—</span></div>
-      <div><strong style="color: var(--mint-700);">メール:</strong> <span id="userEmail">—</span></div>
+    <div class="hint-box">
+      <b>📌 ログインキーを入力してください</b><br>
+      管理者から ChatWork DM などで配布されたログインキー(<code>github_pat_...</code> で始まる文字列)を貼り付けてください。
     </div>
 
-    <button id="continueBtn" class="submit" onclick="goLogin()" style="display:none;">ログイン画面へ</button>
-    <button id="retryBtn" class="submit" onclick="location.reload()" style="display:none;">再試行</button>
-    <div style="text-align: center; margin-top: 14px;">
-      <a href="login.html" id="manualLink" class="muted" style="display:none; font-size: 12px;">手動でログイン画面に進む</a>
+    <div class="setup-form">
+      <label for="patInput">ログインキー</label>
+      <input type="password" id="patInput" placeholder="github_pat_..." autocomplete="off" />
+      <button id="btnSave">設定を保存</button>
     </div>
+
+    <div id="errorMsg" class="auth-msg err" style="display:none; margin-top:12px;"></div>
+    <div id="loadingMsg" class="auth-msg" style="display:none; margin-top:12px; color: var(--mint-600);">確認中...</div>
+
+    <p style="font-size:11px; color:var(--gray-400); margin-top:18px;">
+      <a href="#" onclick="window.logout(); return false;" style="color:var(--gray-500);">別のアカウントでログイン</a>
+    </p>
   </div>
 </div>
 
+<!-- Firebase 認証ガード -->
+<script type="module" src="firebase-auth.js"></script>
 <script src="github-store.js"></script>
 <script>
-  function showStatus(type, msg) {
-    const el = document.getElementById('status');
-    el.className = 'auth-msg ' + type;
-    el.innerHTML = msg;
+  // ユーザー情報がセットされたら名前を表示
+  window.addEventListener('user-ready', (e) => {
+    const u = e.detail;
+    document.getElementById('userName').textContent = u.displayName || u.email;
+  });
+
+  const errorEl = document.getElementById('errorMsg');
+  const loadingEl = document.getElementById('loadingMsg');
+  const btnSave = document.getElementById('btnSave');
+  const patInput = document.getElementById('patInput');
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+    loadingEl.style.display = 'none';
+    btnSave.disabled = false;
+  }
+  function clearError() {
+    errorEl.style.display = 'none';
+  }
+  function showLoading() {
+    loadingEl.style.display = 'block';
+    btnSave.disabled = true;
   }
 
-  function setTitle(title, subtitle) {
-    document.getElementById('title').textContent = title;
-    document.getElementById('subtitle').textContent = subtitle;
-  }
-
-  function goLogin() {
-    window.location.href = 'login.html';
-  }
-
-  function parseHash() {
-    const hash = window.location.hash.replace(/^#/, '');
-    const params = {};
-    hash.split('&').forEach(pair => {
-      const [k, v] = pair.split('=');
-      if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
-    });
-    return params;
-  }
-
-  async function runSetup() {
-    const params = parseHash();
-    const token = params.token;
-    const email = params.email;
-
-    if (!token || !email) {
-      setTitle('セットアップ情報が不足', 'リンクが正しく開けませんでした');
-      showStatus('err',
-        'セットアップに必要な情報がリンクに含まれていません。<br>' +
-        '管理者から送られてきた完全なリンクをクリックしてください。'
-      );
-      document.getElementById('manualLink').style.display = 'inline';
+  btnSave.addEventListener('click', async () => {
+    clearError();
+    const pat = patInput.value.trim();
+    if (!pat) {
+      showError('ログインキーを入力してください');
+      return;
+    }
+    if (!pat.startsWith('github_pat_')) {
+      showError('ログインキーの形式が正しくありません(github_pat_ で始まる必要があります)');
       return;
     }
 
+    showLoading();
     try {
-      localStorage.setItem('importcore.github.pat', token);
-
-      await GitHubStore.authenticate(token);
-      const users = await GitHubStore.loadUserList();
-      const user = users.find(u =>
-        (u.email || '').toLowerCase() === email.toLowerCase()
-      );
-
-      if (!user) {
-        GitHubStore.logout();
-        setTitle('登録外のユーザー', '管理者にご連絡ください');
-        showStatus('err',
-          `${email} は担当者リストに登録されていません。<br>` +
-          '管理者に「Import Core に登録してください」とご連絡ください。'
-        );
-        return;
-      }
-
-      await GitHubStore.selectOperator(email);
-      localStorage.setItem('importcore.operator.email', email);
-
-      setTitle('初期設定が完了しました!', 'ようこそ Import Core へ');
-      showStatus('ok', 'セットアップ成功!');
-
-      document.getElementById('userName').textContent = user.displayName;
-      document.getElementById('userEmail').textContent = user.email;
-      document.getElementById('userInfo').style.display = 'block';
-      document.getElementById('continueBtn').style.display = 'block';
-
+      // PAT を localStorage に保存
+      localStorage.setItem('importcore.github.pat', pat);
+      // 認証テスト:users.json にアクセスできるか確認
+      await GitHubStore.authenticate(pat);
+      // 成功 → index.html へ
+      loadingEl.textContent = '✓ 設定完了!ページを移動します...';
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 800);
     } catch (e) {
-      console.error('Setup error:', e);
+      // 失敗 → PAT をクリア
       localStorage.removeItem('importcore.github.pat');
-      localStorage.removeItem('importcore.operator.email');
-
-      setTitle('セットアップに失敗', 'もう一度お試しください');
-
-      let msg = e.message || '不明なエラー';
+      let msg = e.message || 'エラー';
       if (msg.includes('UNAUTHORIZED')) {
-        msg = 'リンクのキーが無効です。管理者に新しいリンクを発行してもらってください。';
-      } else if (msg.includes('FORBIDDEN')) {
-        msg = 'リンクのキーに権限がありません。管理者にご確認ください。';
-      } else if (msg.includes('NOT_FOUND')) {
-        msg = 'データが見つかりません。管理者にご確認ください。';
-      } else if (/NetworkError|Failed to fetch/.test(msg)) {
-        msg = 'ネットワークエラー。インターネット接続を確認してください。';
+        msg = 'ログインキーが無効です。管理者に正しいキーを依頼してください。';
       }
-      showStatus('err', msg);
-      document.getElementById('retryBtn').style.display = 'block';
-      document.getElementById('manualLink').style.display = 'inline';
+      showError(msg);
     }
-  }
+  });
 
-  window.addEventListener('DOMContentLoaded', runSetup);
+  // Enterキーでも保存できるように
+  patInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btnSave.click();
+  });
 </script>
 </body>
 </html>

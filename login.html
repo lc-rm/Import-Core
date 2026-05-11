@@ -3,8 +3,50 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ログイン - Import Core</title>
+  <title>Import Core - ログイン</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .google-btn {
+      background: #fff;
+      color: #1F2937;
+      padding: 12px 20px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border: 2px solid var(--mint-200, #a7f3d0);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      margin-top: 12px;
+    }
+    .google-btn:hover {
+      transform: scale(1.02);
+      border-color: var(--mint-500, #10b981);
+    }
+    .google-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .google-btn img {
+      width: 18px;
+      height: 18px;
+    }
+    .hint {
+      font-size: 11px;
+      color: var(--gray-400, #9ca3af);
+      margin-top: 16px;
+    }
+    .loading {
+      color: var(--mint-600, #059669);
+      font-size: 13px;
+      margin-top: 12px;
+      display: none;
+    }
+    .loading.show { display: block; }
+  </style>
 </head>
 <body>
 
@@ -12,124 +54,114 @@
   <div class="auth-card">
     <img src="assets/koala-wave.png" alt="" class="auth-koala" />
     <h1>Import Core</h1>
-    <p class="auth-sub">採用コア取込ツール</p>
+    <p class="auth-sub">採用コア取込ツール<br>Googleアカウントでログインしてください</p>
 
-    <div class="form-row">
-      <label for="loginId">ID</label>
-      <input type="text" id="loginId" placeholder="ID を入力" autocomplete="username">
-    </div>
+    <button class="google-btn" id="btnLogin">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+      Googleでログイン
+    </button>
 
-    <div class="form-row">
-      <label for="loginPw">パスワード</label>
-      <input type="password" id="loginPw" autocomplete="current-password">
-    </div>
+    <div class="loading" id="loading">確認中...</div>
+    <div id="errorMsg" class="auth-msg err" style="display:none; margin-top:12px;"></div>
 
-    <button type="button" id="loginBtn" class="submit" onclick="doLogin()">ログイン</button>
-
-    <div id="status" class="auth-msg"></div>
+    <p class="hint">@link-core.co.jp のアカウントのみアクセス可能です</p>
   </div>
 </div>
 
-<script src="github-store.js"></script>
-<script>
-  const SHARED_LOGIN_ID = 'client-saiyou@link-core.co.jp';
-  const SHARED_LOGIN_PW = 'linkcore2291-26';
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
-  async function doLogin() {
-    const id = document.getElementById('loginId').value.trim();
-    const pw = document.getElementById('loginPw').value;
-    const btn = document.getElementById('loginBtn');
+const firebaseConfig = {
+  apiKey: "AIzaSyABGLA8_0qREKGRbbe0XYja9140jnd18ZA",
+  authDomain: "import-core.firebaseapp.com",
+  projectId: "import-core",
+  storageBucket: "import-core.firebasestorage.app",
+  messagingSenderId: "449866396771",
+  appId: "1:449866396771:web:b342a84f66ec8307903456"
+};
 
-    if (!id || !pw) {
-      showStatus('err', 'ID とパスワードを両方入力してください');
-      return;
-    }
+const ALLOWED_DOMAIN = "link-core.co.jp";
+const REDIRECT_AFTER_LOGIN = "./index.html";
+const SETUP_PAGE = "./setup.html";
 
-    if (id !== SHARED_LOGIN_ID || pw !== SHARED_LOGIN_PW) {
-      showStatus('err', 'ID またはパスワードが違います');
-      return;
-    }
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+// Google アカウント選択時、@link-core.co.jp のヒントを出す
+provider.setCustomParameters({ hd: ALLOWED_DOMAIN });
 
-    const token = localStorage.getItem('importcore.github.pat');
-    if (!token) {
-      showStatus('warn',
-        'この PC は初期設定が済んでいません。<br>' +
-        '管理者から送られた「初期設定リンク」をクリックしてください。'
-      );
-      return;
-    }
+// セッション持続(ブラウザ閉じても保持)
+await setPersistence(auth, browserLocalPersistence);
 
-    btn.disabled = true;
-    btn.textContent = '認証中...';
-    showStatus('muted', 'データに接続しています...');
+const errorEl = document.getElementById('errorMsg');
+const loadingEl = document.getElementById('loading');
+const btnLogin = document.getElementById('btnLogin');
 
-    try {
-      await GitHubStore.authenticate(token);
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.style.display = 'block';
+  loadingEl.classList.remove('show');
+  btnLogin.disabled = false;
+}
+function clearError() {
+  errorEl.style.display = 'none';
+}
 
-      const operatorEmail = localStorage.getItem('importcore.operator.email');
-      if (operatorEmail) {
-        const users = await GitHubStore.loadUserList();
-        const exists = users.find(u => u.email === operatorEmail);
-        if (exists) {
-          showStatus('ok', `${exists.displayName} としてログイン中...`);
-          setTimeout(() => { window.location.href = 'index.html'; }, 400);
-          return;
-        }
-        localStorage.removeItem('importcore.operator.email');
-      }
-
-      showStatus('ok', '認証成功!担当者選択画面へ移動します...');
-      setTimeout(() => { window.location.href = 'operator-select.html'; }, 400);
-
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = 'ログイン';
-
-      let msg = e.message || 'エラーが発生しました';
-      if (msg.includes('UNAUTHORIZED')) {
-        msg = 'この PC のログインキーが期限切れまたは無効です。管理者に新しい初期設定リンクを依頼してください。';
-      } else if (msg.includes('FORBIDDEN')) {
-        msg = '権限エラーです。管理者にご確認ください。';
-      } else if (msg.includes('NOT_FOUND')) {
-        msg = 'データに接続できません。管理者にご確認ください。';
-      } else if (/NetworkError|Failed to fetch/.test(msg)) {
-        msg = 'ネットワークエラー。インターネット接続を確認してください。';
-      }
-      showStatus('err', msg);
+// 既にログイン済みなら、自動でリダイレクト先へ
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    const email = user.email || '';
+    if (email.endsWith('@' + ALLOWED_DOMAIN)) {
+      loadingEl.textContent = 'ログイン済みです。リダイレクトします...';
+      loadingEl.classList.add('show');
+      // PATがあるかで遷移先を分ける
+      const pat = localStorage.getItem('importcore.github.pat');
+      const dest = pat ? REDIRECT_AFTER_LOGIN : SETUP_PAGE;
+      // 担当者メアドも保存(github-store.js が参照する)
+      localStorage.setItem('importcore.operator.email', email);
+      setTimeout(() => {
+        window.location.href = dest;
+      }, 500);
+    } else {
+      signOut(auth);
+      showError('@' + ALLOWED_DOMAIN + ' のアカウントでログインしてください');
     }
   }
+});
 
-  function showStatus(type, msg) {
-    const el = document.getElementById('status');
-    el.className = 'auth-msg ' + type;
-    el.innerHTML = msg;
+btnLogin.onclick = async () => {
+  clearError();
+  loadingEl.textContent = '確認中...';
+  loadingEl.classList.add('show');
+  btnLogin.disabled = true;
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const email = result.user.email || '';
+    if (!email.endsWith('@' + ALLOWED_DOMAIN)) {
+      await signOut(auth);
+      showError('@' + ALLOWED_DOMAIN + ' のアカウントでログインしてください');
+      return;
+    }
+    // 成功時は onAuthStateChanged が発火してリダイレクトされる
+  } catch (err) {
+    console.error(err);
+    if (err.code === 'auth/popup-closed-by-user') {
+      loadingEl.classList.remove('show');
+      btnLogin.disabled = false;
+      return;
+    }
+    showError('ログインに失敗しました: ' + (err.message || err));
   }
-
-  window.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('importcore.github.pat');
-    const operator = localStorage.getItem('importcore.operator.email');
-    const stayLogin = sessionStorage.getItem('importcore.force.login');
-
-    if (stayLogin) {
-      sessionStorage.removeItem('importcore.force.login');
-      document.getElementById('loginId').focus();
-      return;
-    }
-
-    if (token && operator) {
-      window.location.href = 'index.html';
-      return;
-    }
-
-    document.getElementById('loginId').focus();
-  });
-
-  document.getElementById('loginPw').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doLogin();
-  });
-  document.getElementById('loginId').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('loginPw').focus();
-  });
+};
 </script>
 </body>
 </html>

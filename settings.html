@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>クライアント・履歴 - Import Core</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Firebase 認証ガード -->
+  <script type="module" src="firebase-auth.js"></script>
 </head>
 <body>
 <header>
@@ -67,7 +69,14 @@ if (!Auth.requireLogin()) throw new Error('login required');
 
 async function init(){
   $('currentUser').textContent = Auth.getCurrentUserId();
-  $('logoutBtn').onclick = () => { Auth.clearSession(); location.href = 'login.html'; };
+  $('logoutBtn').onclick = () => {
+    if (typeof window.logout === 'function') {
+      window.logout();
+    } else {
+      Auth.clearSession();
+      location.href = 'login.html';
+    }
+  };
 
   // 管理者なら「設定」タブを表示
   await GitHubStore.loadUsers();

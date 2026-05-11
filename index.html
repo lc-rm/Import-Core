@@ -6,6 +6,8 @@
   <title>変換 - Import Core</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="style.css" />
+  <!-- Firebase 認証ガード(未ログインならlogin.htmlへ自動リダイレクト) -->
+  <script type="module" src="firebase-auth.js"></script>
 </head>
 <body>
 <header>
@@ -124,7 +126,14 @@ let currentSource = null;
 
 async function init(){
   $('currentUser').textContent = Auth.getCurrentUserId();
-  $('logoutBtn').onclick = () => { Auth.clearSession(); location.href = 'login.html'; };
+  $('logoutBtn').onclick = () => {
+    if (typeof window.logout === 'function') {
+      window.logout();
+    } else {
+      Auth.clearSession();
+      location.href = 'login.html';
+    }
+  };
 
   // 管理者なら「設定」タブを表示
   try {

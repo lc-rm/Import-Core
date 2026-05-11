@@ -707,19 +707,15 @@
   global.Auth = {
     /**
      * ログイン要求(互換):
-     * 新システムでは header-bar.js が PAT 未設定なら login.html へ自動遷移する。
-     * よってここでは「PAT が localStorage にあるか」だけを返せば十分。
-     * header-bar.js を読み込む前に呼ばれた場合の保険にもなる。
+     * 新システム(Firebase認証):
+     * - 認証チェックは firebase-auth.js が担当
+     * - ここでは PAT があるかだけチェック(PAT 必須)
+     * - PAT がなければ setup.html へ
      */
     requireLogin: function () {
       const token = localStorage.getItem('importcore.github.pat');
-      const operatorEmail = localStorage.getItem('importcore.operator.email');
       if (!token) {
-        location.href = 'login.html';
-        return false;
-      }
-      if (!operatorEmail) {
-        location.href = 'operator-select.html';
+        location.href = 'setup.html';
         return false;
       }
       return true;
@@ -741,13 +737,15 @@
 
     /**
      * セッション破棄(互換):
-     * 旧 Auth.clearSession() は localStorage の認証情報を消していた。
-     * 新システムでも同等。ただし PAT は残しておく(初期設定をやり直さないため)。
-     * → 担当者メールだけ削除して、login.html での force.login フラグを立てる。
+     * 新システムでは window.logout() (Firebase 経由) が正規ルート。
+     * 互換のため localStorage から担当者情報を消す程度。
      */
     clearSession: function () {
       localStorage.removeItem('importcore.operator.email');
-      try { sessionStorage.setItem('importcore.force.login', '1'); } catch (e) {}
+      // Firebase のログアウトもしたい場合は window.logout() を呼ぶ
+      if (typeof global.logout === 'function') {
+        global.logout();
+      }
     },
 
     /**
