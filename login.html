@@ -7,20 +7,26 @@
   <link rel="stylesheet" href="style.css" />
   <style>
     .google-btn {
+    .google-btn-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    .google-btn {
       background: #fff;
       color: #1F2937;
-      padding: 12px 20px;
+      padding: 12px 24px;
       border-radius: 999px;
       font-weight: 700;
       font-size: 14px;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 10px;
       border: 2px solid var(--mint-200, #a7f3d0);
       cursor: pointer;
       transition: all 0.2s;
       font-family: inherit;
-      margin-top: 12px;
     }
     .google-btn:hover {
       transform: scale(1.02);
@@ -56,10 +62,12 @@
     <h1>Import Core</h1>
     <p class="auth-sub">採用コア取込ツール<br>Googleアカウントでログインしてください</p>
 
-    <button class="google-btn" id="btnLogin">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
-      Googleでログイン
-    </button>
+    <div class="google-btn-wrap">
+      <button class="google-btn" id="btnLogin">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+        Googleでログイン
+      </button>
+    </div>
 
     <div class="loading" id="loading">確認中...</div>
     <div id="errorMsg" class="auth-msg err" style="display:none; margin-top:12px;"></div>
