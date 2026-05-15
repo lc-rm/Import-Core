@@ -16,11 +16,13 @@ const SOURCES = {
     map: (row, ctx) => {
       const get = (n) => ctx.get(row, n);
       const [by, bm, bd] = ctx.ymdFromBirth(get('生年月日'));
+      // 表示用職種名は「職種名/求人番号」形式
+      // 例: "事業企画担当/112499" → before="事業企画担当", after="112499"
       const job = ctx.splitBySlash(get('表示用職種名'));
 
       return {
         '応募日':   ctx.dateOnly(get('応募受付日')),
-        '求人番号': '',
+        '求人番号': job.after,
         '求人名称': job.before,
         '応募職種': get('応募職種名') || get('掲載職種名称'),
         '勤務地':   '',
@@ -153,7 +155,7 @@ const SOURCES = {
       const get = (n) => ctx.get(row, n);
       const [by, bm, bd] = ctx.ymdFromBirth(get('生年月日'));
       // 住所末尾の「(国:日本)」のような付加情報を除去(全角・半角両対応)
-      const addr = ctx.norm(get('住所')).replace(/\s*[(（]\s*国\s*[:：][^)）]*[)）]?.*$/, '').trim();
+      const addr = ctx.norm(get('住所')).replace(/\s*[((]\s*国\s*[::][^))]*[))]?.*$/, '').trim();
 
       return {
         '応募日':   ctx.dateOnly(get('応募日時')),
@@ -190,14 +192,14 @@ const SOURCES = {
       // 氏名「福井儀一(ふくいよしかず)」→ 氏名+ふりがな に分離(全角/半角カッコ両対応)
       const rawName = ctx.norm(get('氏名'));
       let name = rawName, kana = '';
-      const m = rawName.match(/^(.+?)\s*[(（]([^)）]+)[)）]\s*$/);
+      const m = rawName.match(/^(.+?)\s*[((]([^))]+)[))]\s*$/);
       if (m){
         name = m[1].trim();
         kana = m[2].trim();
       }
 
       // 生年月日「1961年03月13日 (65歳)」から日付部分のみ
-      const birthStr = ctx.norm(get('生年月日')).replace(/\s*[(（]\d+\s*歳[)）]\s*/, '');
+      const birthStr = ctx.norm(get('生年月日')).replace(/\s*[((]\d+\s*歳[))]\s*/, '');
       const [by, bm, bd] = ctx.ymdFromBirth(birthStr);
 
       const workplace = ctx.norm(get('勤務先_1'));
