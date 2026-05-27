@@ -155,6 +155,7 @@ function get(row, name){
 }
 
 // ----- 重複判定キー(メールor電話) -----
+// 旧:過去5回履歴との重複チェック用(後方互換)
 function makeKeys(record){
   const keys = [];
   const email = norm(record['メール']).toLowerCase();
@@ -162,6 +163,35 @@ function makeKeys(record){
   if (email) keys.push('e:' + email);
   if (phone) keys.push('p:' + phone);
   return keys;
+}
+
+// ----- 行ハッシュ(全項目を結合してSHA-256) -----
+// 新:CSV出力済みデータの永続記録用
+// 全項目の正規化済み文字列を結合してハッシュ化することで、
+// 1行分の応募データを一意に識別する。
+// 同じ人の別応募(時刻違い、別案件、別の項目1つでも違う)は別ハッシュになる。
+async function makeRowHash(record){
+  // CSV出力対象の全カラムを順番に結合(空欄は空文字に統一して表記揺れ吸収)
+  const parts = TEMPLATE_HEADERS.map(h => norm(record[h]));
+  // メールは小文字に統一、電話は数字のみに統一して表記揺れ吸収
+  const idxEmail = TEMPLATE_HEADERS.indexOf('メール');
+  const idxPhone = TEMPLATE_HEADERS.indexOf('電話');
+  if (idxEmail >= 0) parts[idxEmail] = parts[idxEmail].toLowerCase();
+  if (idxPhone >= 0) parts[idxPhone] = onlyDigits(parts[idxPhone]);
+  const joined = parts.join('\u0001'); // 区切り文字に制御文字を使う(データに出現しない)
+
+  // SHA-256でハッシュ化(Web Crypto API)
+  const encoder = new TextEncoder();
+  const data = encoder.encode(joined);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  // Uint8Array → 16進文字列
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 複数レコードを並行でハッシュ化
+async function makeRowHashes(records){
+  return Promise.all(records.map(r => makeRowHash(r)));
 }
 
 // =====================================================================

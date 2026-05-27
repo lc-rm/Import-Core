@@ -577,6 +577,66 @@
     }, `Delete history: ${clientId}/${sourceId}/${processedAt}`);
   }
 
+  // --- CSV変換済み行ハッシュ(全件・永続) ---------------------------------
+  // 新設計: CSVに出力した行の SHA-256 ハッシュを蓄積し、過去の取込みを永久に
+  //         覚えておく。これにより「過去5件より前」のデータも重複扱いできる。
+  //         data.json 内に exportedHashes として保存。
+  //         構造: { exportedHashes: { [clientId]: { [sourceId]: [hash, hash, ...] } } }
+
+  /**
+   * CSV変換済みハッシュをSetで返す(指定クライアント+媒体)
+   */
+  async function getExportedHashes(clientId, sourceId) {
+    const data = await loadData();
+    const list = ((data.exportedHashes || {})[clientId] || {})[sourceId] || [];
+    return new Set(list);
+  }
+
+  /**
+   * CSV変換済みハッシュを追記
+   * @param {string} clientId
+   * @param {string} sourceId
+   * @param {string[]} hashes 追加するハッシュの配列(重複は自動除外)
+   */
+  async function appendExportedHashes(clientId, sourceId, hashes) {
+    if (!hashes || hashes.length === 0) return;
+    return updateData(content => {
+      content.exportedHashes = content.exportedHashes || {};
+      content.exportedHashes[clientId] = content.exportedHashes[clientId] || {};
+      const existing = content.exportedHashes[clientId][sourceId] || [];
+      const existingSet = new Set(existing);
+      const merged = existing.slice();
+      for (const h of hashes) {
+        if (!existingSet.has(h)) {
+          merged.push(h);
+          existingSet.add(h);
+        }
+      }
+      content.exportedHashes[clientId][sourceId] = merged;
+      return content;
+    }, `Append exported hashes: ${clientId}/${sourceId} (+${hashes.length})`);
+  }
+
+  /**
+   * 統計用:クライアント+媒体ごとの変換済み件数を返す
+   */
+  async function getExportedCount(clientId, sourceId) {
+    const data = await loadData();
+    const list = ((data.exportedHashes || {})[clientId] || {})[sourceId] || [];
+    return list.length;
+  }
+
+  /**
+   * 統計用:クライアント全体(全媒体)の変換済み件数を返す
+   */
+  async function getExportedCountForClient(clientId) {
+    const data = await loadData();
+    const sources = (data.exportedHashes || {})[clientId] || {};
+    let total = 0;
+    Object.values(sources).forEach(list => { total += (list || []).length; });
+    return total;
+  }
+
   // --- ユーザー(担当者)管理 -------------------------------------------
 
   async function loadUserList() {
@@ -688,6 +748,12 @@
     getAllHistory,
     getAllHistoryFlat,
     deleteHistoryEntry,
+
+    // CSV変換済みハッシュ(新設計)
+    getExportedHashes,
+    appendExportedHashes,
+    getExportedCount,
+    getExportedCountForClient,
 
     // ユーザー管理
     loadUserList,

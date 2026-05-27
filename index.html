@@ -32,7 +32,7 @@
       <img src="assets/koala-wave.png" alt="" />
       <div>
         <h1>応募者情報を変換</h1>
-        <div class="note">クライアントと媒体を選んで、応募情報のファイルをドラッグ&ドロップしてください。<br>過去5回分の取込履歴と照合し、<b>新規の候補者だけ</b>を変換します。</div>
+        <div class="note">クライアントと媒体を選んで、応募情報のファイルをドラッグ&ドロップしてください。<br>過去にCSV出力した応募と照合し、<b>新規の候補者だけ</b>を変換します。</div>
       </div>
     </div>
 
@@ -122,6 +122,7 @@ if (!Auth.requireLogin()) throw new Error('login required');
 
 let lastNewRecords = [];
 let lastDuplicates = [];
+let lastNewHashes = [];   // 新規分の行ハッシュ(CSVダウンロード時に exportedHashes へ追記)
 let currentSource = null;
 
 async function init(){
@@ -320,7 +321,7 @@ async function refreshHistory(){
       const tr = b.closest('tr');
       const sLabel = (SOURCES[sId] && SOURCES[sId].label) || sId;
       const dt = new Date(processed).toLocaleString('ja-JP');
-      if (!confirm(`以下の履歴を削除します。よろしいですか?\n\n媒体: ${sLabel}\n取込日時: ${dt}\n\n※ 削除すると、この回に取り込んだ応募者の重複チェックが効かなくなります。`)) return;
+      if (!confirm(`以下の履歴を削除します。よろしいですか?\n\n媒体: ${sLabel}\n取込日時: ${dt}\n\n※ 履歴のみを削除します(CSV出力済みデータの重複チェックは引き続き有効です)。`)) return;
 
       // 楽観的UI更新:行をフェードアウト + トースト
       tr.style.transition = 'opacity 0.2s';
@@ -397,18 +398,37 @@ async function handleFile(file){
     };
     const allRecords = convertRows(rawRows, source, options);
 
-    const known = await SecureStore.getKnownKeys(cId, sId);
+    // 重複チェック:
+    //  1) 行ハッシュベース(永続)→ 過去すべての CSV出力済みデータと照合
+    //  2) 旧キー方式(過去5回分の履歴)→ 後方互換、念のためダブルチェック
+    const [exportedHashes, known] = await Promise.all([
+      SecureStore.getExportedHashes(cId, sId),
+      SecureStore.getKnownKeys(cId, sId)
+    ]);
+    // 各レコードの行ハッシュを計算
+    const allHashes = await makeRowHashes(allRecords);
+
     const newRecords = [];
     const duplicates = [];
-    for (const rec of allRecords){
+    for (let i = 0; i < allRecords.length; i++){
+      const rec = allRecords[i];
+      const hash = allHashes[i];
       const keys = makeKeys(rec);
-      const hit = keys.some(k => known.has(k));
-      if (hit) duplicates.push({ rec, keys });
-      else     newRecords.push({ rec, keys });
+      // 行ハッシュ一致 → 過去にCSV変換済みの行(永続記録)
+      const hashHit = exportedHashes.has(hash);
+      // キー一致 → 過去5回履歴と重複(旧仕様、念のため)
+      const keyHit = keys.some(k => known.has(k));
+      if (hashHit || keyHit) {
+        duplicates.push({ rec, keys, hash });
+      } else {
+        newRecords.push({ rec, keys, hash });
+      }
     }
 
     lastNewRecords = newRecords.map(x => x.rec);
     lastDuplicates = duplicates.map(x => x.rec);
+    // 新規分の行ハッシュをグローバルに保持(CSVダウンロード時に追記する)
+    lastNewHashes = newRecords.map(x => x.hash);
 
     showSummary(allRecords.length, newRecords.length, duplicates.length, file.name);
     showPreview(lastNewRecords);
@@ -444,7 +464,7 @@ function showPreview(records){
       <div class="hero-empty">
         <img src="assets/koala-think.png" alt="" />
         <p>新規の候補者はありませんでした</p>
-        <p class="muted">すべて過去5回分の履歴と重複しています</p>
+        <p class="muted">すべて過去にCSV出力済みです</p>
       </div>`;
     return;
   }
@@ -514,13 +534,26 @@ async function downloadCsv(){
   const lock = LoadingMask.show(historyCard, '履歴を保存しています', 'GitHubに記録中', 'normal');
 
   try {
-    await SecureStore.appendHistory(cId, sId, keys, lastNewRecords.length, {
-      totalCount,
-      newCount: lastNewRecords.length,
-      dupCount: lastDuplicates.length,
-      csv,
-      filename: fname
-    });
+    // 1) 履歴(5件まで、旧仕様)を保存
+    // 2) 変換済みハッシュ(全件、新仕様)を保存
+    //    どちらかが失敗してももう片方は試みる(Promise.allSettled)
+    const [historyResult, hashResult] = await Promise.allSettled([
+      SecureStore.appendHistory(cId, sId, keys, lastNewRecords.length, {
+        totalCount,
+        newCount: lastNewRecords.length,
+        dupCount: lastDuplicates.length,
+        csv,
+        filename: fname
+      }),
+      SecureStore.appendExportedHashes(cId, sId, lastNewHashes)
+    ]);
+    // 失敗した方をログに残す
+    if (historyResult.status === 'rejected') console.error('履歴保存失敗:', historyResult.reason);
+    if (hashResult.status === 'rejected') console.error('ハッシュ保存失敗:', hashResult.reason);
+    // どちらも失敗ならエラー扱い
+    if (historyResult.status === 'rejected' && hashResult.status === 'rejected') {
+      throw historyResult.reason;
+    }
     // プルダウンの並び順を更新(選択は維持)
     await populateClients();
     await populateSources();
