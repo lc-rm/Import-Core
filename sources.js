@@ -180,6 +180,9 @@ const SOURCES = {
   },
 
   // ---------------- 求人ボックス ----------------
+  // 新旧フォーマット対応:
+  //  旧:1行=1応募の取込みCSV(氏名「福井儀一(ふくいよしかず)」/応募日時/求人タイトル列あり)
+  //  新:履歴書ダウンロードCSV(氏名・ふりがな別列/応募日時・求人タイトル列なし/職務経験詳細あり)
   kyujinbox: {
     id: 'kyujinbox',
     label: '求人ボックス',
@@ -189,41 +192,124 @@ const SOURCES = {
     map: (row, ctx) => {
       const get = (n) => ctx.get(row, n);
 
-      // 氏名「福井儀一(ふくいよしかず)」→ 氏名+ふりがな に分離(全角/半角カッコ両対応)
-      const rawName = ctx.norm(get('氏名'));
-      let name = rawName, kana = '';
-      const m = rawName.match(/^(.+?)\s*[((]([^))]+)[))]\s*$/);
-      if (m){
-        name = m[1].trim();
-        kana = m[2].trim();
+      // 名前・ふりがな取得
+      // 新フォーマット:「氏名」「ふりがな」が別列
+      // 旧フォーマット:「氏名」内に「氏名(ふりがな)」形式
+      let name = ctx.norm(get('氏名'));
+      let kana = ctx.norm(get('ふりがな'));
+      if (!kana) {
+        // 旧フォーマット対応:氏名に()でふりがなが入っているパターン
+        const m = name.match(/^(.+?)\s*[((]([^))]+)[))]\s*$/);
+        if (m){
+          name = m[1].trim();
+          kana = m[2].trim();
+        }
       }
 
-      // 生年月日「1961年03月13日 (65歳)」から日付部分のみ
+      // 生年月日「1961年03月13日 (65歳)」「1954年6月1日(72歳)」から日付部分のみ
       const birthStr = ctx.norm(get('生年月日')).replace(/\s*[((]\d+\s*歳[))]\s*/, '');
       const [by, bm, bd] = ctx.ymdFromBirth(birthStr);
 
-      const workplace = ctx.norm(get('勤務先_1'));
-      const workduty  = ctx.norm(get('役職・業務内容など_1'));
+      // メールアドレス(新:「メール」/ 旧:「メールアドレス」)
+      const email = get('メール') || get('メールアドレス');
+
+      // 直近の勤務先(新:「職務経験1_企業名」/ 旧:「勤務先_1」)
+      const workplace = ctx.norm(get('職務経験1_企業名') || get('勤務先_1'));
+      // 業務内容(新:「職務経験1_業務内容詳細」or「職務経験1_役職」/ 旧:「役職・業務内容など_1」)
+      const workdutyDetail = ctx.norm(get('職務経験1_業務内容詳細'));
+      const workdutyRole   = ctx.norm(get('職務経験1_役職'));
+      const workduty = workdutyDetail || workdutyRole || ctx.norm(get('役職・業務内容など_1'));
+
+      // 現在の職業(新:「職務経験_現在の職業」/ 旧:「現在の職業」)
+      const currentJob = get('職務経験_現在の職業') || get('現在の職業');
+
+      // 備考(新:「その他・備考」/ 旧:「備考・PR」)
+      const remark = get('その他・備考') || get('備考・PR');
+
+      // 住所(新フォーマットのみ、メモに含める)
+      const addrRaw = ctx.norm(get('都道府県・市区町村・番地・建物名'));
+      // 「〒457-0863」のような郵便番号と住所を別カラム持つ場合は連結
+      const zip = ctx.norm(get('郵便番号'));
 
       return {
-        '応募日':   ctx.dateOnly(get('応募日時')),
+        '応募日':   ctx.dateOnly(get('応募日時')),  // 新フォーマットでは空欄(画面の「適用する応募日」で補填)
         '求人番号': '',
-        '求人名称': get('求人タイトル'),
+        '求人名称': get('求人タイトル') || '',      // 新フォーマットでは空欄
         '応募職種': '',
         '勤務地':   '',
         '部署':     '',
         '名前':     name,
         'ふりがな': kana,
-        'メール':   get('メールアドレス'),
+        'メール':   email,
         '電話':     ctx.formatPhone(get('電話番号')),
         '性別':     get('性別'),
         '生年': by, '月': bm, '日': bd,
         'メモ':     [
-          get('現在の職業') ? '現職: ' + get('現在の職業') : '',
-          workplace ? '直近: ' + workplace + (workduty ? ' / ' + workduty : '') : '',
-          get('備考・PR') ? 'PR: ' + ctx.norm(get('備考・PR')).slice(0, 200) : '',
+          currentJob ? '現職: ' + currentJob : '',
+          workplace ? '直近: ' + workplace + (workduty ? ' / ' + workduty.slice(0, 100) : '') : '',
+          zip ? zip : '',
+          addrRaw ? '住所: ' + addrRaw : '',
+          remark ? 'PR: ' + ctx.norm(remark).slice(0, 200) : '',
           get('選考コメント') || ''
         ].filter(x => x).join(' / '),
+      };
+    }
+  },
+
+  // ---------------- 採用コア(ハッシュ登録用) ----------------
+  // 採用コアからエクスポートしたCSV(=Import Coreが出力するCSVと同じ
+  // TEMPLATE_HEADERS 形式)をそのまま取り込み、ハッシュ登録するための
+  // 「擬似媒体」。
+  //
+  // 使い方:
+  //   1) 媒体ドロップダウンで「採用コア(ハッシュ登録用)」を選択
+  //   2) 採用コアCSVをドラッグ&ドロップ
+  //   3) 変換結果のプレビューを確認
+  //   4) 「新規分のCSVをダウンロード」を押す → 履歴 + exportedHashes に
+  //      永久保存される(ダウンロードされるCSVは破棄してOK)
+  //
+  // ポイント:
+  //   - 入力CSVは TEMPLATE_HEADERS 形式なので、ほぼパススルー
+  //   - 媒体名は CSVの値(ジョブオプ/engage/...)をそのまま尊重
+  //     → 通常の媒体取込みとハッシュが一致する
+  //   - ステータスも上書きしない(採用コアでの状態をそのまま記録)
+  recruit_core: {
+    id: 'recruit_core',
+    label: '採用コア(ハッシュ登録用)',
+    mediaName: '採用コア',
+    preserveMediaName: true,    // 媒体名・ステータスを上書きしない(convertRowsで参照)
+    fileTypes: '.csv',
+    encoding: 'utf-8',
+    map: (row, ctx) => {
+      const get = (n) => ctx.get(row, n);
+      // TEMPLATE_HEADERS の各列をそのままパススルー
+      return {
+        '応募日':       get('応募日'),
+        '求人番号':     get('求人番号'),
+        '求人名称':     get('求人名称'),
+        '応募職種':     get('応募職種'),
+        '勤務地':       get('勤務地'),
+        '部署':         get('部署'),
+        '名前':         get('名前'),
+        'ふりがな':     get('ふりがな'),
+        'メール':       get('メール'),
+        '電話':         get('電話'),
+        '性別':         get('性別'),
+        '生年':         get('生年'),
+        '月':           get('月'),
+        '日':           get('日'),
+        '媒体名':       get('媒体名'),
+        '人材紹介会社': get('人材紹介会社'),
+        'ステータス':   get('ステータス'),
+        '採用可否':     get('採用可否'),
+        'コンタクト日': get('コンタクト日'),
+        '1次面接日時': get('1次面接日時'),
+        '1次面接結果': get('1次面接結果'),
+        '2次面接日時': get('2次面接日時'),
+        '2次面接結果': get('2次面接結果'),
+        '退職日':       get('退職日'),
+        '書類URL':      get('書類URL'),
+        'メモ':         get('メモ'),
       };
     }
   },

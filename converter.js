@@ -390,14 +390,19 @@ function convertRows(rows, source, options){
   const ctx = { norm, onlyDigits, formatPhone, ymdFromBirth, dateOnly, splitBySlash, get };
   const fixedDate   = options.applyDate || '';
   const mediaName   = options.mediaName || source.mediaName;
+  // 採用コア取込みなど「元データをそのまま尊重したいソース」では
+  // 媒体名・ステータスを上書きしない(source.preserveMediaName = true)
+  const preserve    = !!source.preserveMediaName;
 
   return rows.map(row => {
     const mapped = source.map(row, ctx);
     if (fixedDate) mapped['応募日'] = fixedDate;
-    // 媒体名は必ず選択されたソースの mediaName を使う(バグ修正)
-    mapped['媒体名'] = mediaName;
-    // 新規取込時のステータスは半角ハイフン固定(全媒体共通)
-    mapped['ステータス'] = FIXED_STATUS;
+    if (!preserve) {
+      // 通常媒体:選択されたソースの mediaName で上書き
+      mapped['媒体名'] = mediaName;
+      // 新規取込時のステータスは半角ハイフン固定(全媒体共通)
+      mapped['ステータス'] = FIXED_STATUS;
+    }
     return mapped;
   });
 }
