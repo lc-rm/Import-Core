@@ -165,17 +165,31 @@ function makeKeys(record){
   return keys;
 }
 
-// ----- 行ハッシュ(全項目を結合してSHA-256) -----
+// ----- 行ハッシュ用ヘッダー(採用コア側で変更されない項目のみ) -----
+// 採用コアで運用すると「ステータス」「採用可否」「面接結果」などが応募者ごとに更新される。
+// それらをハッシュに含めると、採用コアからエクスポートしたCSVと
+// Import Coreが出力するCSVのハッシュが一致しなくなり、重複検出が効かなくなる。
+// → 「応募者の素データ」だけでハッシュ計算する。
+// 除外項目:
+//   ステータス、採用可否、コンタクト日、1次/2次面接日時・結果、退職日、書類URL
+const HASH_HEADERS = [
+  "応募日","求人番号","求人名称","応募職種","勤務地","部署",
+  "名前","ふりがな","メール","電話","性別","生年","月","日",
+  "媒体名","人材紹介会社","メモ"
+];
+
+// ----- 行ハッシュ(応募者素データのみを結合してSHA-256) -----
 // 新:CSV出力済みデータの永続記録用
-// 全項目の正規化済み文字列を結合してハッシュ化することで、
+// HASH_HEADERS の項目を所定の順序で結合してハッシュ化することで、
 // 1行分の応募データを一意に識別する。
 // 同じ人の別応募(時刻違い、別案件、別の項目1つでも違う)は別ハッシュになる。
+// 採用コア側でステータス等が更新されても、ハッシュは変わらない。
 async function makeRowHash(record){
-  // CSV出力対象の全カラムを順番に結合(空欄は空文字に統一して表記揺れ吸収)
-  const parts = TEMPLATE_HEADERS.map(h => norm(record[h]));
+  // HASH_HEADERS の全カラムを順番に結合(空欄は空文字に統一して表記揺れ吸収)
+  const parts = HASH_HEADERS.map(h => norm(record[h]));
   // メールは小文字に統一、電話は数字のみに統一して表記揺れ吸収
-  const idxEmail = TEMPLATE_HEADERS.indexOf('メール');
-  const idxPhone = TEMPLATE_HEADERS.indexOf('電話');
+  const idxEmail = HASH_HEADERS.indexOf('メール');
+  const idxPhone = HASH_HEADERS.indexOf('電話');
   if (idxEmail >= 0) parts[idxEmail] = parts[idxEmail].toLowerCase();
   if (idxPhone >= 0) parts[idxPhone] = onlyDigits(parts[idxPhone]);
   const joined = parts.join('\u0001'); // 区切り文字に制御文字を使う(データに出現しない)
@@ -192,6 +206,18 @@ async function makeRowHash(record){
 // 複数レコードを並行でハッシュ化
 async function makeRowHashes(records){
   return Promise.all(records.map(r => makeRowHash(r)));
+}
+
+// ----- CSVテキストをレコード配列に変換(過去履歴/採用コアCSV取込み用) -----
+// CSV本体(ヘッダー行を含む)をパースし、TEMPLATE_HEADERS にマップされたレコード配列を返す。
+// 元のparseCsv はヘッダーをそのまま使うので、出力されたCSVのカラム名(=TEMPLATE_HEADERS)に
+// 対応する形でレコード化される。
+function csvTextToRecords(csvText){
+  if (!csvText) return [];
+  // 先頭BOM除去
+  let text = csvText;
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  return parseCsv(text, ',');
 }
 
 // =====================================================================

@@ -37,7 +37,7 @@
   const LS_KEY_OPERATOR = 'importcore.operator.email';
 
   // 取込履歴の最大保持件数(クライアント×媒体ごと)
-  const MAX_HISTORY_PER_SOURCE = 5;
+  const MAX_HISTORY_PER_SOURCE = 50;
 
   // ------------------------------------------------------------------
   // ローカルキャッシュ(SHA含むファイル状態を保持)
