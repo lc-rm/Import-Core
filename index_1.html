@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>変換 - Import Core</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Firebase 認証ガード(未ログインならlogin.htmlへ自動リダイレクト) -->
+  <script type="module" src="firebase-auth.js"></script>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <img src="assets/koala-happy.png" alt="" />
+    <span>Import Core</span>
+  </div>
+  <nav>
+    <a href="index.html" class="active">変換</a>
+    <a href="settings.html">クライアント・履歴</a>
+    <a href="admin.html" id="navAdmin" style="display:none;">設定</a>
+  </nav>
+  <div class="user-badge">
+    <span><img id="userAvatar" class="user-avatar" alt="" style="display:none; width:24px; height:24px; border-radius:50%; vertical-align:middle; margin-right:6px;"><span id="userAvatarFallback" style="vertical-align:middle;">👤</span> <span class="uid" id="currentUser" style="vertical-align:middle;"></span></span>
+    <button id="logoutBtn" type="button">ログアウト</button>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="card-header-with-koala">
+      <img src="assets/koala-wave.png" alt="" />
+      <div>
+        <h1>応募者情報を変換</h1>
+        <div class="note">クライアントと媒体を選んで、応募情報のファイルをドラッグ&ドロップしてください。<br>過去にCSV出力した応募と照合し、<b>新規の候補者だけ</b>を変換します。</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>クライアント
+        <select id="client"></select>
+      </label>
+      <label>媒体
+        <select id="source"></select>
+      </label>
+      <label>応募日(指定すると全件を上書き)
+        <input id="applyDate" type="date" />
+      </label>
+    </div>
+
+    <div id="drop">
+      <img src="assets/koala-happy.png" alt="" class="koala-drop" />
+      ここにファイルをドラッグ&ドロップ
+      <span class="sub">またはクリックして選択 / Excel(.xls/.xlsx)・CSV対応</span>
+    </div>
+    <input id="file" type="file" hidden />
+
+    <!-- ===== Indeed応募者ページ取込モード(媒体=indeed のときだけ表示) ===== -->
+    <div id="indeedPasteArea" style="display:none; margin-top:14px">
+      <div class="indeed-paste-box">
+        <h3 style="margin-top:0">🔗 Indeed応募者ページから直接取込</h3>
+        <div class="note">
+          Indeedの応募者詳細ページでブックマークレットをクリックすると、応募者情報がコピーされます。<br>
+          下の「クリップボードから追加」ボタンでキューに追加できます。
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer; color:var(--mint-700); font-weight:600">📌 ブックマークレットの登録方法(初回のみ)</summary>
+            <div style="margin-top:10px; padding:10px 14px; background:#fff; border-radius:8px; border:1px solid var(--mint-200)">
+              <ol style="margin:6px 0 6px 18px; padding:0">
+                <li>ブックマークバーが表示されていない場合は <code>Cmd + Shift + B</code> で表示</li>
+                <li>下のリンク「<b>📥 Indeed取込</b>」を <b>ブックマークバーにドラッグ&ドロップ</b></li>
+                <li>登録完了!Indeed応募者詳細ページでクリックすれば動作します</li>
+              </ol>
+              <div style="margin-top:10px; text-align:center">
+                <a id="indeedBookmarklet" href="#" class="bookmarklet-link"
+                   onclick="alert('このリンクをクリックではなく、ブックマークバーへドラッグ&ドロップしてください'); return false">📥 Indeed取込</a>
+              </div>
+            </div>
+          </details>
+        </div>
+        <div class="row" style="margin:14px 0">
+          <button id="pasteFromClipboard" type="button">📋 クリップボードから追加</button>
+          <button id="pasteFromText" type="button" class="ghost">テキスト貼り付け</button>
+          <span id="pasteMsg" class="muted"></span>
+        </div>
+        <div id="manualPasteArea" style="display:none; margin-bottom:14px">
+          <textarea id="pasteTextarea" placeholder="ブックマークレットがコピーしたJSONをここに貼り付け" style="width:100%; min-height:80px; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--gray-200); border-radius:8px"></textarea>
+          <div style="margin-top:6px">
+            <button id="pasteTextSubmit" type="button" class="small">追加</button>
+            <button id="pasteTextCancel" type="button" class="small ghost">キャンセル</button>
+          </div>
+        </div>
+        <div id="indeedQueue"></div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <button id="download" disabled>新規分のCSVをダウンロード</button>
+      <span id="msg" class="muted"></span>
+    </div>
+
+    <div id="summary"></div>
+    <div id="preview" class="scroll"></div>
+    <div id="dupList" class="scroll"></div>
+  </div>
+
+  <div class="card" id="historyCard">
+    <h2>取込履歴</h2>
+    <div id="historyList" class="muted">クライアントと媒体を選ぶと表示されます</div>
+  </div>
+
+  <div class="card" id="recoveryCard">
+    <h2>🛡 二重登録防止ツール</h2>
+    <p class="note">
+      <b>採用コアに既に登録されている応募者</b>を Import Core に教えると、それらの人が誤って再CSV出力されることを完全に防げます。<br>
+      クライアントを選択した状態でボタンを押してください。
+    </p>
+    <div style="display:flex; flex-direction:column; gap:8px; max-width:520px; margin-top:12px;">
+      <button id="btnImportRecruitCore" class="small">📥 採用コアCSVを取り込んでハッシュ登録</button>
+      <input type="file" id="recruitCoreFile" accept=".csv" style="display:none">
+      <button id="btnMigrateHistory" class="small">🔧 過去取込み履歴からハッシュ復元(このクライアント分)</button>
+    </div>
+    <div id="recoveryMsg" class="muted" style="margin-top:8px;"></div>
+  </div>
+</main>
+
+<script src="github-store.js"></script>
+<script src="ui-helper.js"></script>
+<script src="sources.js"></script>
+<script src="converter.js"></script>
+<script src="assets/indeed_bookmarklet.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+// ログイン必須(互換 Auth API。github-store.js が提供)
+if (!Auth.requireLogin()) throw new Error('login required');
+
+let lastNewRecords = [];
+let lastDuplicates = [];
+let lastNewHashes = [];   // 新規分の行ハッシュ(CSVダウンロード時に exportedHashes へ追記)
+let currentSource = null;
+
+async function init(){
+  $('currentUser').textContent = Auth.getCurrentUserId();
+  $('logoutBtn').onclick = () => {
+    if (typeof window.logout === 'function') {
+      window.logout();
+    } else {
+      Auth.clearSession();
+      location.href = 'login.html';
+    }
+  };
+
+  // 管理者なら「設定」タブを表示
+  try {
+    await GitHubStore.loadUsers();
+    const opEmail = GitHubStore.getOperatorEmail();
+    if (GitHubStore.canManageUsers(opEmail)) {
+      $('navAdmin').style.display = '';
+    }
+  } catch (e) { /* ユーザーリスト取得失敗してもページ表示は継続 */ }
+
+  await populateSources();
+  await populateClients();
+  await refreshHistory();
+  updateFileAccept();
+  updateModeView();
+
+  // Indeed ブックマークレットURLを a 要素にセット
+  setupBookmarkletLink();
+
+  $('client').addEventListener('change', () => {
+    refreshHistory();
+    if ($('source').value === 'indeed') refreshIndeedSummary();
+  });
+  $('source').addEventListener('change', () => {
+    refreshHistory();
+    updateFileAccept();
+    updateModeView();
+  });
+  $('applyDate').addEventListener('change', () => {
+    if ($('source').value === 'indeed') refreshIndeedSummary();
+  });
+
+  $('drop').onclick = () => $('file').click();
+  $('file').onchange = e => handleFile(e.target.files[0]);
+  ['dragenter','dragover'].forEach(ev =>
+    $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(ev =>
+    $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('drag'); })
+  );
+  $('drop').addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+  $('download').onclick = downloadCsv;
+
+  // Indeed取込モードのイベント
+  $('pasteFromClipboard').onclick = onPasteFromClipboard;
+  $('pasteFromText').onclick = () => {
+    $('manualPasteArea').style.display = 'block';
+    $('pasteTextarea').focus();
+  };
+  $('pasteTextSubmit').onclick = onPasteTextSubmit;
+  $('pasteTextCancel').onclick = () => {
+    $('manualPasteArea').style.display = 'none';
+    $('pasteTextarea').value = '';
+  };
+}
+
+async function populateSources(){
+  const sel = $('source');
+  sel.innerHTML = '';
+  // 媒体ごとの最終使用日時を取得(全クライアント横断)
+  const all = await SecureStore.getAllHistory();
+  const lastUsed = {};
+  for (const cId in all){
+    for (const sId in all[cId]){
+      const arr = all[cId][sId] || [];
+      if (arr.length > 0){
+        const t = new Date(arr[0].processedAt).getTime();
+        if (!lastUsed[sId] || lastUsed[sId] < t) lastUsed[sId] = t;
+      }
+    }
+  }
+  // 元の順番を保つために配列に。internal:true のものは除外
+  const ids = Object.keys(SOURCES).filter(id => !SOURCES[id].internal);
+  ids.sort((a, b) => {
+    const ta = lastUsed[a] || 0;
+    const tb = lastUsed[b] || 0;
+    if (ta === tb) return 0;  // 使ってない同士は元の順番
+    return tb - ta;            // 直近使ったものが上
+  });
+  for (const id of ids){
+    const s = SOURCES[id];
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = s.label + (s.placeholder ? ' (汎用)' : '');
+    sel.appendChild(opt);
+  }
+}
+
+function updateFileAccept(){
+  const sId = $('source').value;
+  currentSource = SOURCES[sId];
+  $('file').accept = currentSource.fileTypes || '.xls,.xlsx,.csv';
+}
+
+async function populateClients(){
+  const sel = $('client');
+  sel.innerHTML = '';
+  const clients = await SecureStore.loadClients();
+  if (clients.length === 0){
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '-- 「クライアント・履歴」ページで追加してください --';
+    sel.appendChild(opt);
+    return;
+  }
+  // クライアントごとの最終使用日時を取得
+  const all = await SecureStore.getAllHistory();
+  const lastUsed = {};
+  for (const cId in all){
+    for (const sId in all[cId]){
+      const arr = all[cId][sId] || [];
+      if (arr.length > 0){
+        const t = new Date(arr[0].processedAt).getTime();
+        if (!lastUsed[cId] || lastUsed[cId] < t) lastUsed[cId] = t;
+      }
+    }
+  }
+  const sorted = [...clients].sort((a, b) => {
+    const ta = lastUsed[a.id] || 0;
+    const tb = lastUsed[b.id] || 0;
+    if (ta === tb) return 0;  // 使ってない同士は元の順番
+    return tb - ta;            // 直近使ったものが上
+  });
+  for (const c of sorted){
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  }
+}
+
+async function refreshHistory(){
+  const cId = $('client').value;
+  const box = $('historyList');
+  if (!cId){ box.textContent = 'クライアント未選択'; return; }
+  const all = await SecureStore.getAllHistory();
+  const byClient = (all && all[cId]) || {};
+  // 全媒体の履歴を集めて時系列降順にソート
+  const flat = [];
+  for (const sId in byClient){
+    for (const e of (byClient[sId] || [])){
+      flat.push({ sId, ...e });
+    }
+  }
+  flat.sort((a,b) => new Date(b.processedAt) - new Date(a.processedAt));
+  if (flat.length === 0){
+    box.innerHTML = '<span class="muted">履歴なし(初回取込時に作成されます)</span>';
+    return;
+  }
+  const rows = flat.map((e,i) => {
+    const dt = new Date(e.processedAt).toLocaleString('ja-JP');
+    const sLabel = (SOURCES[e.sId] && SOURCES[e.sId].label) || e.sId;
+    const total = e.totalCount ?? e.count ?? 0;
+    const newC = e.newCount ?? e.count ?? 0;
+    const dupC = e.dupCount ?? 0;
+    const dlBtn = e.csv
+      ? `<button class="small" onclick="redownloadHistory('${cId}','${e.sId}','${e.processedAt}')">📥CSV</button>`
+      : `<span class="muted" style="font-size:11px">―</span>`;
+    const delBtn = `<button class="small danger" data-client="${cId}" data-source="${e.sId}" data-processed="${e.processedAt}" data-action="delete-history">削除</button>`;
+    return `<tr data-row-key="${cId}__${e.sId}__${e.processedAt}">
+      <td>${i+1}</td>
+      <td><b>${escapeHtml(sLabel)}</b></td>
+      <td>${dt}</td>
+      <td>${total}件</td>
+      <td class="ok">${newC}件</td>
+      <td class="dup">${dupC}件</td>
+      <td>${dlBtn}</td>
+      <td>${delBtn}</td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `
+    <table>
+      <thead><tr><th>#</th><th>媒体</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th><th>操作</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  // 削除ボタンの処理(楽観的UI更新 + ローディング)
+  box.querySelectorAll('button[data-action="delete-history"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const b = e.currentTarget;
+      const clientId = b.dataset.client;
+      const sId = b.dataset.source;
+      const processed = b.dataset.processed;
+      const tr = b.closest('tr');
+      const sLabel = (SOURCES[sId] && SOURCES[sId].label) || sId;
+      const dt = new Date(processed).toLocaleString('ja-JP');
+      if (!confirm(`以下の履歴を削除します。よろしいですか?\n\n媒体: ${sLabel}\n取込日時: ${dt}\n\n※ 履歴のみを削除します(CSV出力済みデータの重複チェックは引き続き有効です)。`)) return;
+
+      // 楽観的UI更新:行をフェードアウト + トースト
+      tr.style.transition = 'opacity 0.2s';
+      tr.style.opacity = '0.4';
+      b.disabled = true;
+      b.textContent = '削除中...';
+      const toast = LoadingMask.showToast('履歴を削除しています', 'normal');
+
+      try {
+        await SecureStore.deleteHistoryEntry(clientId, sId, processed);
+        // 成功:行を実際に削除
+        tr.remove();
+        LoadingMask.showResult('履歴を削除しました', 'ok');
+        // 履歴が空になった場合の表示更新
+        if (box.querySelectorAll('tr[data-row-key]').length === 0) {
+          await refreshHistory();
+        }
+      } catch (err) {
+        // 失敗:UIを元に戻す
+        tr.style.opacity = '1';
+        b.disabled = false;
+        b.textContent = '削除';
+        LoadingMask.showResult('削除に失敗しました', 'error');
+      } finally {
+        toast.hide();
+      }
+    });
+  });
+}
+
+async function redownloadHistory(clientId, sourceId, processedAt){
+  const all = await SecureStore.getAllHistory();
+  const arr = (all[clientId] && all[clientId][sourceId]) || [];
+  const entry = arr.find(e => e.processedAt === processedAt);
+  if (!entry || !entry.csv){
+    alert('このCSVデータは保持されていません(直近1回分のみ再ダウンロード可能です)');
+    return;
+  }
+  const blob = new Blob([entry.csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = entry.filename || 'export.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function handleFile(file){
+  if (!file) return;
+  const cId = $('client').value;
+  if (!cId){ $('msg').innerHTML = '<span class="err">先にクライアントを選択してください</span>'; return; }
+
+  const sId = $('source').value;
+  const source = SOURCES[sId];
+
+  $('msg').textContent = '';
+  $('summary').innerHTML = '';
+  $('preview').innerHTML = '';
+  $('dupList').innerHTML = '';
+
+  // 取込カード全体にコアラローディングをかける
+  const card = $('drop').closest('.card') || $('drop').parentElement;
+  const lock = LoadingMask.show(card, '応募者を変換しています', `${file.name} を処理中`, 'heavy');
+
+  try {
+    const rawRows = await readFile(file, source);
+    if (rawRows.length === 0){
+      $('msg').innerHTML = '<span class="err">データが見つかりませんでした(列ヘッダーがないファイルかもしれません)</span>';
+      return;
+    }
+
+    const options = {
+      applyDate: $('applyDate').value,
+      mediaName: source.mediaName
+    };
+    const allRecords = convertRows(rawRows, source, options);
+
+    // 重複チェック(三段構え):
+    //  1) 行ハッシュベース(永続)→ exportedHashes、過去すべての CSV出力済みと照合
+    //  2) 過去履歴のCSV(履歴に残っている範囲)→ 動的にハッシュ化して照合 ※マイグレ忘れの保険
+    //  3) 旧キー方式(過去履歴のメアド/電話)→ さらに保険
+    const [exportedHashes, known, allHistory] = await Promise.all([
+      SecureStore.getExportedHashes(cId, sId),
+      SecureStore.getKnownKeys(cId, sId),
+      SecureStore.getAllHistory()
+    ]);
+    // 該当クライアント・媒体の履歴だけ取り出す
+    const historyEntries = ((allHistory || {})[cId] || {})[sId] || [];
+
+    // 過去履歴のCSV本体を動的にハッシュ化して exportedHashes に合算
+    // (マイグレーション未実施でも、履歴に残っている範囲のCSVは毎回検出される)
+    try {
+      for (const entry of historyEntries) {
+        if (!entry || !entry.csv) continue;
+        const records = csvTextToRecords(entry.csv);
+        if (!records || records.length === 0) continue;
+        const hashes = await makeRowHashes(records);
+        hashes.forEach(h => exportedHashes.add(h));
+      }
+    } catch (histErr) {
+      console.warn('履歴CSVのハッシュ化に失敗(無視して続行):', histErr);
+    }
+
+    // 各レコードの行ハッシュを計算
+    const allHashes = await makeRowHashes(allRecords);
+
+    const newRecords = [];
+    const duplicates = [];
+    for (let i = 0; i < allRecords.length; i++){
+      const rec = allRecords[i];
+      const hash = allHashes[i];
+      const keys = makeKeys(rec);
+      // 行ハッシュ一致 → 過去にCSV変換済みの行(永続+履歴の合算)
+      const hashHit = exportedHashes.has(hash);
+      // キー一致 → 過去履歴と重複(旧仕様、念のため)
+      const keyHit = keys.some(k => known.has(k));
+      if (hashHit || keyHit) {
+        duplicates.push({ rec, keys, hash });
+      } else {
+        newRecords.push({ rec, keys, hash });
+      }
+    }
+
+    lastNewRecords = newRecords.map(x => x.rec);
+    lastDuplicates = duplicates.map(x => x.rec);
+    // 新規分の行ハッシュをグローバルに保持(CSVダウンロード時に追記する)
+    lastNewHashes = newRecords.map(x => x.hash);
+
+    showSummary(allRecords.length, newRecords.length, duplicates.length, file.name);
+    showPreview(lastNewRecords);
+    showDupList(lastDuplicates);
+
+    $('download').disabled = lastNewRecords.length === 0;
+    $('msg').textContent = '';
+  } catch (e){
+    console.error(e);
+    $('msg').innerHTML = `<span class="err">読み込みに失敗しました:${e.message}</span>`;
+  } finally {
+    lock.hide();
+  }
+}
+
+function showSummary(total, newCount, dupCount, fileName){
+  const koala = newCount > 0 ? 'koala-thumb.png' : 'koala-think.png';
+  $('summary').innerHTML = `
+    <div class="summary">
+      <img src="assets/${koala}" alt="" class="koala-img" />
+      <div class="stats">
+        <div><span class="lbl">ファイル</span><span class="val" style="font-size:13px;font-weight:600">${fileName}</span></div>
+        <div><span class="lbl">取込全体</span><span class="val">${total}件</span></div>
+        <div><span class="lbl ok">新規</span><span class="val ok">${newCount}件</span></div>
+        <div><span class="lbl dup">重複(除外)</span><span class="val dup">${dupCount}件</span></div>
+      </div>
+    </div>`;
+}
+
+function showPreview(records){
+  if (records.length === 0){
+    $('preview').innerHTML = `
+      <div class="hero-empty">
+        <img src="assets/koala-think.png" alt="" />
+        <p>新規の候補者はありませんでした</p>
+        <p class="muted">すべて過去にCSV出力済みです</p>
+      </div>`;
+    return;
+  }
+  const cols = ['応募日','求人名称','名前','ふりがな','メール','電話','性別','メモ'];
+  const head = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+  const body = records.slice(0,10).map(r =>
+    '<tr>' + cols.map(c => `<td>${escapeHtml(norm(r[c]))}</td>`).join('') + '</tr>'
+  ).join('');
+  $('preview').innerHTML = `
+    <h3>新規分プレビュー(先頭10件)</h3>
+    <table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function showDupList(records){
+  if (records.length === 0){ $('dupList').innerHTML = ''; return; }
+  const cols = ['名前','メール','電話'];
+  const head = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+  const body = records.slice(0,20).map(r =>
+    '<tr>' + cols.map(c => `<td>${escapeHtml(norm(r[c]))}</td>`).join('') + '</tr>'
+  ).join('');
+  $('dupList').innerHTML = `
+    <h3 class="dup">重複として除外された候補者(${records.length}件 / 先頭20件)</h3>
+    <table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+async function downloadCsv(){
+  if (lastNewRecords.length === 0) return;
+  const cId = $('client').value;
+  const sId = $('source').value;
+  const clients = await SecureStore.loadClients();
+  const client = clients.find(c => c.id === cId);
+  const csv = makeCsv(lastNewRecords);
+
+  const today = new Date().toISOString().slice(0,10);
+  const safeName = (client?.name || 'client').replace(/[\\/:*?"<>|]/g,'_');
+  const fname = `採用コア_${safeName}_${SOURCES[sId].label}_${today}.csv`;
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  const keys = [];
+  for (const r of lastNewRecords){
+    for (const k of makeKeys(r)) keys.push(k);
+  }
+  const totalCount = lastNewRecords.length + lastDuplicates.length;
+
+  // ===== 楽観的UI更新:即座に履歴テーブルへ追加表示 =====
+  const optimisticEntry = {
+    sId: sId,
+    processedAt: new Date().toISOString(),
+    operatorEmail: 'me',
+    totalCount: totalCount,
+    newCount: lastNewRecords.length,
+    dupCount: lastDuplicates.length,
+    csv: csv,
+    filename: fname,
+    _pending: true
+  };
+  prependHistoryRowOptimistic(cId, optimisticEntry);
+
+  // 履歴カードにコアラPCローディング(裏で書き込み中の表示)
+  const historyCard = $('historyCard');
+  const lock = LoadingMask.show(historyCard, '履歴を保存しています', 'GitHubに記録中', 'normal');
+
+  try {
+    // 1) 履歴(5件まで、旧仕様)を保存
+    // 2) 変換済みハッシュ(全件、新仕様)を保存
+    //    どちらかが失敗してももう片方は試みる(Promise.allSettled)
+    const [historyResult, hashResult] = await Promise.allSettled([
+      SecureStore.appendHistory(cId, sId, keys, lastNewRecords.length, {
+        totalCount,
+        newCount: lastNewRecords.length,
+        dupCount: lastDuplicates.length,
+        csv,
+        filename: fname
+      }),
+      SecureStore.appendExportedHashes(cId, sId, lastNewHashes)
+    ]);
+    // 失敗した方をログに残す
+    if (historyResult.status === 'rejected') console.error('履歴保存失敗:', historyResult.reason);
+    if (hashResult.status === 'rejected') console.error('ハッシュ保存失敗:', hashResult.reason);
+    // どちらも失敗ならエラー扱い
+    if (historyResult.status === 'rejected' && hashResult.status === 'rejected') {
+      throw historyResult.reason;
+    }
+    // プルダウンの並び順を更新(選択は維持)
+    await populateClients();
+    await populateSources();
+    $('client').value = cId;
+    $('source').value = sId;
+    await refreshHistory();
+    $('msg').innerHTML = `<span class="ok">${lastNewRecords.length}件をCSVに出力し、履歴に記録しました</span>`;
+    LoadingMask.showResult(`${lastNewRecords.length}件を取り込みました`, 'ok');
+  } catch (err) {
+    $('msg').innerHTML = `<span class="err">履歴の保存に失敗しました: ${err.message || err}</span>`;
+    LoadingMask.showResult('履歴の保存に失敗しました', 'error');
+    // 楽観的に追加した行を消す
+    await refreshHistory();
+  } finally {
+    lock.hide();
+  }
+
+  // Indeed取込モードの場合、出力後にキューをクリア
+  if (sId === 'indeed' && indeedQueue.length > 0){
+    indeedQueue = [];
+    renderIndeedQueue();
+    refreshIndeedSummary();
+  }
+}
+
+/**
+ * 楽観的UI更新:履歴テーブル先頭に行を即追加
+ */
+function prependHistoryRowOptimistic(cId, entry){
+  const box = $('historyList');
+  if (!box) return;
+  const sLabel = (SOURCES[entry.sId] && SOURCES[entry.sId].label) || entry.sId;
+  const dt = new Date(entry.processedAt).toLocaleString('ja-JP');
+
+  // tbodyを探してその先頭にインサート
+  let tbody = box.querySelector('tbody');
+  if (!tbody) {
+    // 履歴がまだ無い場合、テーブルを作る
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>#</th><th>媒体</th><th>取込日時</th><th>全体</th><th>新規</th><th>重複</th><th>CSV</th><th>操作</th></tr></thead>
+        <tbody></tbody>
+      </table>`;
+    tbody = box.querySelector('tbody');
+  }
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>1</td>
+    <td><b>${escapeHtml(sLabel)}</b></td>
+    <td>${dt}</td>
+    <td>${entry.totalCount}件</td>
+    <td class="ok">${entry.newCount}件</td>
+    <td class="dup">${entry.dupCount}件</td>
+    <td><span class="muted" style="font-size:11px">―</span></td>
+    <td><span class="muted" style="font-size:11px">保存中...</span></td>
+  `;
+  tr.style.background = '#fef9c3'; // 保存中ハイライト
+  tbody.insertBefore(tr, tbody.firstChild);
+
+  // 既存行の番号を再計算
+  Array.from(tbody.querySelectorAll('tr')).forEach((r, i) => {
+    if (r.firstElementChild) r.firstElementChild.textContent = i + 1;
+  });
+}
+
+// =====================================================================
+// Indeed応募者ページ取込モード
+// =====================================================================
+let indeedQueue = []; // [{ data, capturedAt, sourceUrl }]
+
+function setupBookmarkletLink(){
+  const a = $('indeedBookmarklet');
+  if (a && window.INDEED_BOOKMARKLET_URL){
+    a.href = window.INDEED_BOOKMARKLET_URL;
+  }
+}
+
+function updateModeView(){
+  const sId = $('source').value;
+  const isIndeed = sId === 'indeed';
+  // Indeed のとき: ファイル取込ドロップ領域を隠して、Indeed取込エリアを表示
+  $('drop').style.display = isIndeed ? 'none' : '';
+  $('indeedPasteArea').style.display = isIndeed ? 'block' : 'none';
+  // Indeedモードに入ったらサマリ・プレビューをキューに合わせて再構築
+  if (isIndeed){
+    refreshIndeedSummary();
+  }
+  // Indeed以外に切り替えたとき、Indeedで残っていたサマリやプレビューはクリアしない
+  // (他媒体のファイル取込結果を上書きしないため、handleFileが呼ばれるまでそのまま)
+}
+
+async function onPasteFromClipboard(){
+  const msg = $('pasteMsg');
+  msg.innerHTML = '';
+  if (!navigator.clipboard || !navigator.clipboard.readText){
+    msg.innerHTML = '<span class="err">このブラウザはクリップボード読込に対応していません。「テキスト貼り付け」を使ってください</span>';
+    return;
+  }
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text){
+      msg.innerHTML = '<span class="err">クリップボードが空です。応募者ページでブックマークレットをクリックしてからお試しください</span>';
+      return;
+    }
+    addToQueueFromJson(text);
+  } catch(e){
+    msg.innerHTML = `<span class="err">クリップボード読込に失敗しました: ${escapeHtml(e.message)}<br>「テキスト貼り付け」をお試しください</span>`;
+  }
+}
+
+function onPasteTextSubmit(){
+  const text = $('pasteTextarea').value.trim();
+  if (!text){
+    $('pasteMsg').innerHTML = '<span class="err">JSONを貼り付けてください</span>';
+    return;
+  }
+  if (addToQueueFromJson(text)){
+    $('pasteTextarea').value = '';
+    $('manualPasteArea').style.display = 'none';
+  }
+}
+
+function addToQueueFromJson(text){
+  const msg = $('pasteMsg');
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch(e){
+    msg.innerHTML = '<span class="err">JSONとして読み込めませんでした。ブックマークレットでコピーしたデータか確認してください</span>';
+    return false;
+  }
+  if (!payload || payload._type !== 'import-core-indeed' || !payload.data){
+    msg.innerHTML = '<span class="err">Import Core用のデータではないようです。Indeed応募者ページでブックマークレットをクリックしてください</span>';
+    return false;
+  }
+  const data = payload.data;
+  // 重複チェック(キュー内)
+  const dupInQueue = indeedQueue.find(q => {
+    const qd = q.data;
+    if (data.email && qd.email && data.email.toLowerCase() === qd.email.toLowerCase()) return true;
+    const dPhone = (data.phone || '').replace(/\D/g, '');
+    const qPhone = (qd.phone || '').replace(/\D/g, '');
+    if (dPhone && qPhone && dPhone === qPhone) return true;
+    return false;
+  });
+  if (dupInQueue){
+    msg.innerHTML = `<span class="dup">既にキューに追加されています: ${escapeHtml(data.name || data.email || data.phone)}</span>`;
+    return false;
+  }
+  indeedQueue.push({
+    data,
+    capturedAt: payload.capturedAt || new Date().toISOString(),
+    sourceUrl: payload.sourceUrl || ''
+  });
+  renderIndeedQueue();
+  refreshIndeedSummary();
+  msg.innerHTML = `<span class="ok">追加しました: ${escapeHtml(data.name || '(名前不明)')}</span>`;
+  setTimeout(() => { if (msg.innerHTML.includes('追加しました')) msg.innerHTML = ''; }, 3000);
+  return true;
+}
+
+function renderIndeedQueue(){
+  const box = $('indeedQueue');
+  if (indeedQueue.length === 0){
+    box.innerHTML = `<p class="muted" style="margin:10px 0">キューは空です。Indeed応募者ページでブックマークレットをクリックして、「クリップボードから追加」を押してください。</p>`;
+    return;
+  }
+  const head = '<tr><th>#</th><th>名前</th><th>ふりがな</th><th>メール</th><th>電話</th><th>生年月日</th><th>応募職種</th><th></th></tr>';
+  const rows = indeedQueue.map((q, i) => {
+    const d = q.data;
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${escapeHtml(d.name || '')}</td>
+      <td>${escapeHtml(d.kana || '')}</td>
+      <td>${escapeHtml(d.email || '')}</td>
+      <td>${escapeHtml(d.phone || '')}</td>
+      <td>${escapeHtml(d.birth || '')}</td>
+      <td>${escapeHtml(d.jobTitle || '')}</td>
+      <td><button class="small danger" data-idx="${i}" data-action="remove-queue">×</button></td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `
+    <h4 style="margin:14px 0 6px">📋 取込キュー(${indeedQueue.length}人)</h4>
+    <div class="scroll"><table>${head}${rows}</table></div>
+    <div style="margin-top:8px">
+      <button class="small ghost" id="indeedQueueClear">キューをクリア</button>
+    </div>`;
+  // 削除ボタン
+  box.querySelectorAll('button[data-action="remove-queue"]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.target.dataset.idx;
+      indeedQueue.splice(idx, 1);
+      renderIndeedQueue();
+      refreshIndeedSummary();
+    });
+  });
+  $('indeedQueueClear').onclick = () => {
+    if (!confirm('キューを全部クリアします。よろしいですか?')) return;
+    indeedQueue = [];
+    renderIndeedQueue();
+    refreshIndeedSummary();
+  };
+}
+
+// キュー → 採用コア用レコードに変換 → 重複チェック → サマリ・プレビュー更新
+async function refreshIndeedSummary(){
+  const cId = $('client').value;
+  const sId = $('source').value;
+  if (sId !== 'indeed'){
+    return;
+  }
+  if (indeedQueue.length === 0){
+    $('summary').innerHTML = '';
+    $('preview').innerHTML = '';
+    $('dupList').innerHTML = '';
+    lastNewRecords = [];
+    lastDuplicates = [];
+    $('download').disabled = true;
+    return;
+  }
+  if (!cId){
+    $('msg').innerHTML = '<span class="err">クライアントを選択してください</span>';
+    $('download').disabled = true;
+    return;
+  }
+
+  const indeedSource = SOURCES.indeed_page || SOURCES.indeed;
+  const options = {
+    applyDate: $('applyDate').value,
+    mediaName: indeedSource.mediaName
+  };
+  // キュー内の整形済みオブジェクトをそのまま渡す(indeed_page.map がそれを処理する)
+  const rawRows = indeedQueue.map(q => q.data);
+  const allRecords = convertRows(rawRows, indeedSource, options);
+
+  // 重複チェック(履歴と照合)
+  const known = await SecureStore.getKnownKeys(cId, 'indeed');
+  const newRecords = [];
+  const duplicates = [];
+  for (const rec of allRecords){
+    const keys = makeKeys(rec);
+    const hit = keys.some(k => known.has(k));
+    if (hit) duplicates.push({ rec, keys });
+    else     newRecords.push({ rec, keys });
+  }
+
+  lastNewRecords = newRecords.map(x => x.rec);
+  lastDuplicates = duplicates.map(x => x.rec);
+
+  showSummary(allRecords.length, newRecords.length, duplicates.length, `Indeed応募者ページ × ${indeedQueue.length}人`);
+  showPreview(lastNewRecords);
+  showDupList(lastDuplicates);
+
+  $('download').disabled = lastNewRecords.length === 0;
+  $('msg').innerHTML = '';
+}
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// =====================================================================
+//  二重登録防止ツール:
+//    1) 採用コアCSV取込み(全媒体まとめてハッシュ登録)
+//    2) 過去履歴からハッシュ復元(このクライアント分の全媒体)
+// =====================================================================
+
+// 媒体名(CSVの「媒体名」列)→ ソースID へのマッピング
+function getSourceIdByMediaName(mediaName){
+  const name = (mediaName || '').trim();
+  for (const k of Object.keys(SOURCES)){
+    if (SOURCES[k].mediaName === name) return SOURCES[k].id;
+  }
+  // 見つからない場合は other に振る
+  return 'other';
+}
+
+function setupRecoveryTools(){
+  const btnImport = $('btnImportRecruitCore');
+  const btnMigrate = $('btnMigrateHistory');
+  const fileInput = $('recruitCoreFile');
+  const msgBox = $('recoveryMsg');
+
+  if (!btnImport || !btnMigrate || !fileInput) return;
+
+  // --- 採用コアCSV取込み ---
+  btnImport.addEventListener('click', () => {
+    const cId = $('client').value;
+    if (!cId) {
+      msgBox.innerHTML = '<span class="err">クライアントを選択してから押してください</span>';
+      return;
+    }
+    fileInput.value = '';
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    const cId = $('client').value;
+    if (!cId) {
+      msgBox.innerHTML = '<span class="err">クライアントを選択してから押してください</span>';
+      return;
+    }
+    const cName = $('client').selectedOptions[0]?.textContent || cId;
+    if (!confirm(`「${cName}」の採用コアCSVを取り込みます。\n\n中身を見て、媒体ごとに自動で振り分けてハッシュ登録します。\n以降、同じデータは「変換済み」として除外されるようになります。\n\nよろしいですか?`)) return;
+
+    // ボタンを無効化、メッセージで状態表示
+    btnImport.disabled = true;
+    btnMigrate.disabled = true;
+    msgBox.innerHTML = `<span class="muted">⏳ 取り込み中… (${file.name})</span>`;
+    try {
+      // CSVを読み込み → レコード化
+      const rawRows = await readFile(file, { encoding: 'utf-8' });
+      if (!rawRows || rawRows.length === 0) {
+        msgBox.innerHTML = '<span class="err">CSVにデータが見つかりませんでした</span>';
+        return;
+      }
+
+      // 媒体名 → ソースID別に振り分け
+      const bySource = {}; // { sourceId: [record, ...] }
+      for (const row of rawRows){
+        // CSVのヘッダーは TEMPLATE_HEADERS なので、row はそのままレコード扱いできる
+        const sId = getSourceIdByMediaName(row['媒体名']);
+        bySource[sId] = bySource[sId] || [];
+        bySource[sId].push(row);
+      }
+
+      // 各ソースごとにハッシュ化 → exportedHashes に追加
+      const results = [];
+      for (const sId of Object.keys(bySource)){
+        const records = bySource[sId];
+        const hashes = await makeRowHashes(records);
+        await SecureStore.appendExportedHashes(cId, sId, hashes);
+        const label = (SOURCES[sId] && SOURCES[sId].label) || sId;
+        results.push(`${label}: ${hashes.length}件`);
+      }
+
+      msgBox.innerHTML = `<span class="ok">✅ ハッシュ登録完了:${results.join(' / ')}(合計 ${rawRows.length}件)</span>`;
+    } catch (err) {
+      console.error(err);
+      msgBox.innerHTML = `<span class="err">取り込みに失敗しました: ${err.message || err}</span>`;
+    } finally {
+      btnImport.disabled = false;
+      btnMigrate.disabled = false;
+    }
+  });
+
+  // --- 過去履歴からハッシュ復元(このクライアントの全媒体) ---
+  btnMigrate.addEventListener('click', async () => {
+    const cId = $('client').value;
+    if (!cId) {
+      msgBox.innerHTML = '<span class="err">クライアントを選択してから押してください</span>';
+      return;
+    }
+    const cName = $('client').selectedOptions[0]?.textContent || cId;
+    if (!confirm(`「${cName}」の過去取込み履歴(全媒体)からハッシュを復元します。\n履歴に残っている範囲のCSV出力分が「変換済み」として登録されます。\n\nよろしいですか?`)) return;
+
+    btnImport.disabled = true;
+    btnMigrate.disabled = true;
+    msgBox.innerHTML = '<span class="muted">⏳ 復元中…</span>';
+    try {
+      const results = [];
+      let total = 0;
+      // 全媒体の履歴を一括取得
+      const allHistory = await SecureStore.getAllHistory();
+      const clientHistory = (allHistory || {})[cId] || {};
+      // 全媒体の履歴を順に処理
+      for (const sId of Object.keys(SOURCES)){
+        const history = clientHistory[sId] || [];
+        if (history.length === 0) continue;
+        const allHashes = [];
+        for (const entry of history){
+          if (!entry || !entry.csv) continue;
+          const records = csvTextToRecords(entry.csv);
+          if (!records || records.length === 0) continue;
+          const hashes = await makeRowHashes(records);
+          allHashes.push(...hashes);
+        }
+        if (allHashes.length > 0){
+          await SecureStore.appendExportedHashes(cId, sId, allHashes);
+          const label = SOURCES[sId].label;
+          results.push(`${label}: ${allHashes.length}件`);
+          total += allHashes.length;
+        }
+      }
+      if (total === 0){
+        msgBox.innerHTML = '<span class="muted">復元対象の履歴がありませんでした</span>';
+      } else {
+        msgBox.innerHTML = `<span class="ok">✅ ハッシュ復元完了:${results.join(' / ')}(合計 ${total}件)</span>`;
+      }
+    } catch (err) {
+      console.error(err);
+      msgBox.innerHTML = `<span class="err">復元に失敗しました: ${err.message || err}</span>`;
+    } finally {
+      btnImport.disabled = false;
+      btnMigrate.disabled = false;
+    }
+  });
+}
+
+window.redownloadHistory = redownloadHistory;
+init().then(setupRecoveryTools).catch(e => { console.error(e); $('msg').innerHTML = `<span class="err">${e.message}</span>`; });
+</script>
+</body>
+</html>
