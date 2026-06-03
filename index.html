@@ -416,16 +416,18 @@ async function handleFile(file){
     //  1) 行ハッシュベース(永続)→ exportedHashes、過去すべての CSV出力済みと照合
     //  2) 過去履歴のCSV(履歴に残っている範囲)→ 動的にハッシュ化して照合 ※マイグレ忘れの保険
     //  3) 旧キー方式(過去履歴のメアド/電話)→ さらに保険
-    const [exportedHashes, known, historyEntries] = await Promise.all([
+    const [exportedHashes, known, allHistory] = await Promise.all([
       SecureStore.getExportedHashes(cId, sId),
       SecureStore.getKnownKeys(cId, sId),
-      SecureStore.getAllHistory(cId, sId)
+      SecureStore.getAllHistory()
     ]);
+    // 該当クライアント・媒体の履歴だけ取り出す
+    const historyEntries = ((allHistory || {})[cId] || {})[sId] || [];
 
     // 過去履歴のCSV本体を動的にハッシュ化して exportedHashes に合算
     // (マイグレーション未実施でも、履歴に残っている範囲のCSVは毎回検出される)
     try {
-      for (const entry of (historyEntries || [])) {
+      for (const entry of historyEntries) {
         if (!entry || !entry.csv) continue;
         const records = csvTextToRecords(entry.csv);
         if (!records || records.length === 0) continue;
@@ -947,10 +949,13 @@ function setupRecoveryTools(){
     try {
       const results = [];
       let total = 0;
+      // 全媒体の履歴を一括取得
+      const allHistory = await SecureStore.getAllHistory();
+      const clientHistory = (allHistory || {})[cId] || {};
       // 全媒体の履歴を順に処理
       for (const sId of Object.keys(SOURCES)){
-        const history = await SecureStore.getAllHistory(cId, sId);
-        if (!history || history.length === 0) continue;
+        const history = clientHistory[sId] || [];
+        if (history.length === 0) continue;
         const allHashes = [];
         for (const entry of history){
           if (!entry || !entry.csv) continue;
