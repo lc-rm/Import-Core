@@ -3,7 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- キャッシュ無効化:ファイル更新時は必ず最新版を取得 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>変換 - Import Core</title>
+  <!-- ファビコン -->
+  <link rel="icon" type="image/png" href="assets/koala-happy.png" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="style.css" />
   <!-- Firebase 認証ガード(未ログインならlogin.htmlへ自動リダイレクト) -->
@@ -108,19 +114,6 @@
     <div id="historyList" class="muted">クライアントと媒体を選ぶと表示されます</div>
   </div>
 
-  <div class="card" id="recoveryCard">
-    <h2>🛡 二重登録防止ツール</h2>
-    <p class="note">
-      <b>採用コアに既に登録されている応募者</b>を Import Core に教えると、それらの人が誤って再CSV出力されることを完全に防げます。<br>
-      クライアントを選択した状態でボタンを押してください。
-    </p>
-    <div style="display:flex; flex-direction:column; gap:8px; max-width:520px; margin-top:12px;">
-      <button id="btnImportRecruitCore" class="small">📥 採用コアCSVを取り込んでハッシュ登録</button>
-      <input type="file" id="recruitCoreFile" accept=".csv" style="display:none">
-      <button id="btnMigrateHistory" class="small">🔧 過去取込み履歴からハッシュ復元(このクライアント分)</button>
-    </div>
-    <div id="recoveryMsg" class="muted" style="margin-top:8px;"></div>
-  </div>
 </main>
 
 <script src="github-store.js"></script>
@@ -412,17 +405,25 @@ async function handleFile(file){
     };
     const allRecords = convertRows(rawRows, source, options);
 
-    // 重複チェック(三段構え):
+    // 重複チェック(三段構え + 採用コア横断):
     //  1) 行ハッシュベース(永続)→ exportedHashes、過去すべての CSV出力済みと照合
-    //  2) 過去履歴のCSV(履歴に残っている範囲)→ 動的にハッシュ化して照合 ※マイグレ忘れの保険
+    //     ※ 採用コア取込み(recruit_core)で登録されたハッシュも横断的に照合する
+    //  2) 過去履歴のCSV(履歴に残っている範囲)→ 動的にハッシュ化して照合
+    //     ※ 採用コア取込みの履歴CSVも対象に含める
     //  3) 旧キー方式(過去履歴のメアド/電話)→ さらに保険
-    const [exportedHashes, known, allHistory] = await Promise.all([
+    const isRecruitCore = (sId === 'recruit_core');
+    const [ownExportedHashes, crossExportedHashes, known, allHistory] = await Promise.all([
       SecureStore.getExportedHashes(cId, sId),
+      // recruit_core 自身を取り込むときは自媒体だけでOK、他媒体取込み時は recruit_core も合算
+      isRecruitCore ? Promise.resolve(new Set()) : SecureStore.getExportedHashes(cId, 'recruit_core'),
       SecureStore.getKnownKeys(cId, sId),
       SecureStore.getAllHistory()
     ]);
-    // 該当クライアント・媒体の履歴だけ取り出す
-    const historyEntries = ((allHistory || {})[cId] || {})[sId] || [];
+    const exportedHashes = new Set([...ownExportedHashes, ...crossExportedHashes]);
+    // 該当クライアントの履歴(自媒体 + 採用コア媒体)を取り出す
+    const ownHistory     = ((allHistory || {})[cId] || {})[sId] || [];
+    const crossHistory   = isRecruitCore ? [] : (((allHistory || {})[cId] || {})['recruit_core'] || []);
+    const historyEntries = [...ownHistory, ...crossHistory];
 
     // 過去履歴のCSV本体を動的にハッシュ化して exportedHashes に合算
     // (マイグレーション未実施でも、履歴に残っている範囲のCSVは毎回検出される)
@@ -503,12 +504,30 @@ function showPreview(records){
   }
   const cols = ['応募日','求人名称','名前','ふりがな','メール','電話','性別','メモ'];
   const head = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
-  const body = records.slice(0,10).map(r =>
-    '<tr>' + cols.map(c => `<td>${escapeHtml(norm(r[c]))}</td>`).join('') + '</tr>'
+  // 全件表示(応募日を個別編集できるように)
+  const body = records.map((r, i) =>
+    '<tr>' + cols.map(c => {
+      if (c === '応募日') {
+        // 応募日は編集可能な date input にする(変更すると lastNewRecords に反映)
+        const val = norm(r[c]);
+        return `<td><input type="date" class="preview-date" data-index="${i}" value="${escapeHtml(val)}" style="font-size:13px; padding:2px 4px;"></td>`;
+      }
+      return `<td>${escapeHtml(norm(r[c]))}</td>`;
+    }).join('') + '</tr>'
   ).join('');
   $('preview').innerHTML = `
-    <h3>新規分プレビュー(先頭10件)</h3>
+    <h3>新規分プレビュー(${records.length}件) <span class="muted" style="font-size:12px; font-weight:normal;">※応募日は個別に編集できます</span></h3>
     <table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+
+  // 応募日input の変更時、lastNewRecords に反映
+  document.querySelectorAll('.preview-date').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      if (!isNaN(idx) && lastNewRecords[idx]) {
+        lastNewRecords[idx]['応募日'] = e.target.value;
+      }
+    });
+  });
 }
 
 function showDupList(records){
@@ -848,148 +867,9 @@ function escapeHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// =====================================================================
-//  二重登録防止ツール:
-//    1) 採用コアCSV取込み(全媒体まとめてハッシュ登録)
-//    2) 過去履歴からハッシュ復元(このクライアント分の全媒体)
-// =====================================================================
-
-// 媒体名(CSVの「媒体名」列)→ ソースID へのマッピング
-function getSourceIdByMediaName(mediaName){
-  const name = (mediaName || '').trim();
-  for (const k of Object.keys(SOURCES)){
-    if (SOURCES[k].mediaName === name) return SOURCES[k].id;
-  }
-  // 見つからない場合は other に振る
-  return 'other';
-}
-
-function setupRecoveryTools(){
-  const btnImport = $('btnImportRecruitCore');
-  const btnMigrate = $('btnMigrateHistory');
-  const fileInput = $('recruitCoreFile');
-  const msgBox = $('recoveryMsg');
-
-  if (!btnImport || !btnMigrate || !fileInput) return;
-
-  // --- 採用コアCSV取込み ---
-  btnImport.addEventListener('click', () => {
-    const cId = $('client').value;
-    if (!cId) {
-      msgBox.innerHTML = '<span class="err">クライアントを選択してから押してください</span>';
-      return;
-    }
-    fileInput.value = '';
-    fileInput.click();
-  });
-
-  fileInput.addEventListener('change', async (ev) => {
-    const file = ev.target.files && ev.target.files[0];
-    if (!file) return;
-    const cId = $('client').value;
-    if (!cId) {
-      msgBox.innerHTML = '<span class="err">クライアントを選択してから押してください</span>';
-      return;
-    }
-    const cName = $('client').selectedOptions[0]?.textContent || cId;
-    if (!confirm(`「${cName}」の採用コアCSVを取り込みます。\n\n中身を見て、媒体ごとに自動で振り分けてハッシュ登録します。\n以降、同じデータは「変換済み」として除外されるようになります。\n\nよろしいですか?`)) return;
-
-    const lock = LoadingMask.show('採用コアCSVを取り込んでいます…');
-    msgBox.textContent = '';
-    try {
-      // CSVを読み込み → レコード化
-      const rawRows = await readFile(file, { encoding: 'utf-8' });
-      if (!rawRows || rawRows.length === 0) {
-        msgBox.innerHTML = '<span class="err">CSVにデータが見つかりませんでした</span>';
-        return;
-      }
-
-      // 媒体名 → ソースID別に振り分け
-      const bySource = {}; // { sourceId: [record, ...] }
-      for (const row of rawRows){
-        // CSVのヘッダーは TEMPLATE_HEADERS なので、row はそのままレコード扱いできる
-        const sId = getSourceIdByMediaName(row['媒体名']);
-        bySource[sId] = bySource[sId] || [];
-        bySource[sId].push(row);
-      }
-
-      // 各ソースごとにハッシュ化 → exportedHashes に追加
-      const results = [];
-      for (const sId of Object.keys(bySource)){
-        const records = bySource[sId];
-        const hashes = await makeRowHashes(records);
-        await SecureStore.appendExportedHashes(cId, sId, hashes);
-        const label = (SOURCES[sId] && SOURCES[sId].label) || sId;
-        results.push(`${label}: ${hashes.length}件`);
-      }
-
-      msgBox.innerHTML = `<span class="ok">✅ ハッシュ登録完了:${results.join(' / ')}(合計 ${rawRows.length}件)</span>`;
-      LoadingMask.showResult(`採用コアから${rawRows.length}件を登録しました`, 'ok');
-    } catch (err) {
-      console.error(err);
-      msgBox.innerHTML = `<span class="err">取り込みに失敗しました: ${err.message || err}</span>`;
-      LoadingMask.showResult('取り込みに失敗しました', 'error');
-    } finally {
-      lock.hide();
-    }
-  });
-
-  // --- 過去履歴からハッシュ復元(このクライアントの全媒体) ---
-  btnMigrate.addEventListener('click', async () => {
-    const cId = $('client').value;
-    if (!cId) {
-      msgBox.innerHTML = '<span class="err">クライアントを選択してから押してください</span>';
-      return;
-    }
-    const cName = $('client').selectedOptions[0]?.textContent || cId;
-    if (!confirm(`「${cName}」の過去取込み履歴(全媒体)からハッシュを復元します。\n履歴に残っている範囲のCSV出力分が「変換済み」として登録されます。\n\nよろしいですか?`)) return;
-
-    const lock = LoadingMask.show('過去履歴からハッシュを復元しています…');
-    msgBox.textContent = '';
-    try {
-      const results = [];
-      let total = 0;
-      // 全媒体の履歴を一括取得
-      const allHistory = await SecureStore.getAllHistory();
-      const clientHistory = (allHistory || {})[cId] || {};
-      // 全媒体の履歴を順に処理
-      for (const sId of Object.keys(SOURCES)){
-        const history = clientHistory[sId] || [];
-        if (history.length === 0) continue;
-        const allHashes = [];
-        for (const entry of history){
-          if (!entry || !entry.csv) continue;
-          const records = csvTextToRecords(entry.csv);
-          if (!records || records.length === 0) continue;
-          const hashes = await makeRowHashes(records);
-          allHashes.push(...hashes);
-        }
-        if (allHashes.length > 0){
-          await SecureStore.appendExportedHashes(cId, sId, allHashes);
-          const label = SOURCES[sId].label;
-          results.push(`${label}: ${allHashes.length}件`);
-          total += allHashes.length;
-        }
-      }
-      if (total === 0){
-        msgBox.innerHTML = '<span class="muted">復元対象の履歴がありませんでした</span>';
-        LoadingMask.showResult('対象なし', 'normal');
-      } else {
-        msgBox.innerHTML = `<span class="ok">✅ ハッシュ復元完了:${results.join(' / ')}(合計 ${total}件)</span>`;
-        LoadingMask.showResult(`${total}件のハッシュを復元しました`, 'ok');
-      }
-    } catch (err) {
-      console.error(err);
-      msgBox.innerHTML = `<span class="err">復元に失敗しました: ${err.message || err}</span>`;
-      LoadingMask.showResult('復元に失敗しました', 'error');
-    } finally {
-      lock.hide();
-    }
-  });
-}
 
 window.redownloadHistory = redownloadHistory;
-init().then(setupRecoveryTools).catch(e => { console.error(e); $('msg').innerHTML = `<span class="err">${e.message}</span>`; });
+init().catch(e => { console.error(e); $('msg').innerHTML = `<span class="err">${e.message}</span>`; });
 </script>
 </body>
 </html>
