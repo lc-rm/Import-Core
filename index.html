@@ -412,11 +412,10 @@ async function handleFile(file){
     //     ※ 採用コア取込みの履歴CSVも対象に含める
     //  3) 旧キー方式(過去履歴のメアド/電話)→ さらに保険
     const isRecruitCore = (sId === 'recruit_core');
-    const [ownExportedHashes, crossExportedHashes, known, allHistory] = await Promise.all([
+    const [ownExportedHashes, crossExportedHashes, allHistory] = await Promise.all([
       SecureStore.getExportedHashes(cId, sId),
       // recruit_core 自身を取り込むときは自媒体だけでOK、他媒体取込み時は recruit_core も合算
       isRecruitCore ? Promise.resolve(new Set()) : SecureStore.getExportedHashes(cId, 'recruit_core'),
-      SecureStore.getKnownKeys(cId, sId),
       SecureStore.getAllHistory()
     ]);
     const exportedHashes = new Set([...ownExportedHashes, ...crossExportedHashes]);
@@ -449,10 +448,9 @@ async function handleFile(file){
       const hash = allHashes[i];
       const keys = makeKeys(rec);
       // 行ハッシュ一致 → 過去にCSV変換済みの行(永続+履歴の合算)
+      // ※「同じ人だけど別の応募(別日・別求人)」は別ハッシュなので新規扱いになる
       const hashHit = exportedHashes.has(hash);
-      // キー一致 → 過去履歴と重複(旧仕様、念のため)
-      const keyHit = keys.some(k => known.has(k));
-      if (hashHit || keyHit) {
+      if (hashHit) {
         duplicates.push({ rec, keys, hash });
       } else {
         newRecords.push({ rec, keys, hash });
