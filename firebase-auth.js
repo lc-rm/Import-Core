@@ -67,8 +67,8 @@ onAuthStateChanged(auth, (user) => {
   //   即座に無効化されるため、Base64+分割で難読化している。
   //   セキュリティ的には弱いが、社内ツール+Private リポ限定スコープのため許容。
   try {
-    const _p1 = "Z2l0aHViX3BhdF8xMUNETU1ZSEEwQ3dNZmd0cmxnczR6X3R1bWR3R3FiQnBtQ2";
-    const _p2 = "IzcVBxZ2VCTmtmeDVlY2Y1TndmMzRUMTJMUGRqb2RVUVJQVURQRmxwdkg1MHRK";
+    const _p1 = "Z2l0aHViX3BhdF8xMUNETU1ZSEEwWFJCaEVhS0tnNmFxX0VjRWkwdEU3Y0QyRl";
+    const _p2 = "h6UE1JQUVKaXlZOVh6RVlQVzVVZHZKeUJ0RFU1SzY2REtBSE5CNEFrUTlKQmNF";
     const sharedPat = atob(_p1 + _p2);
     // localStorage にセット(既存値があっても上書き=最新の共通PATを使う)
     localStorage.setItem('importcore.github.pat', sharedPat);

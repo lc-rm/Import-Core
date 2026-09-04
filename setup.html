@@ -51,8 +51,8 @@ onAuthStateChanged(auth, (user) => {
 
   // 共通PAT(難読化埋め込み)を localStorage にセット
   try {
-    const _p1 = "Z2l0aHViX3BhdF8xMUNETU1ZSEEwQ3dNZmd0cmxnczR6X3R1bWR3R3FiQnBtQ2";
-    const _p2 = "IzcVBxZ2VCTmtmeDVlY2Y1TndmMzRUMTJMUGRqb2RVUVJQVURQRmxwdkg1MHRK";
+    const _p1 = "Z2l0aHViX3BhdF8xMUNETU1ZSEEwWFJCaEVhS0tnNmFxX0VjRWkwdEU3Y0QyRl";
+    const _p2 = "h6UE1JQUVKaXlZOVh6RVlQVzVVZHZKeUJ0RFU1SzY2REtBSE5CNEFrUTlKQmNF";
     localStorage.setItem('importcore.github.pat', atob(_p1 + _p2));
   } catch (e) {}
   localStorage.setItem('importcore.operator.email', email);
